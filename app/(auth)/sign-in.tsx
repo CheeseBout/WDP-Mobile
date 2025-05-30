@@ -1,19 +1,20 @@
+import { loginUser } from '@/services/auth.service'
 import { useOAuth, useSignIn } from '@clerk/clerk-expo'
 import Ionicons from '@expo/vector-icons/Ionicons'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Link, Stack, useRouter } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
 import React from 'react'
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native'
-
 // Warm up the browser to improve UX
 WebBrowser.maybeCompleteAuthSession()
 
@@ -27,6 +28,34 @@ export default function SignInScreen() {
   const [loading, setLoading] = React.useState(false)
   const [googleLoading, setGoogleLoading] = React.useState(false)
 
+  const onRegularSignIn = async () => {
+    if (!emailAddress || !password) {
+      Alert.alert('Error', 'Please enter both email and password')
+      return
+    }
+    setLoading(true)
+    try {
+      const result = await loginUser({ email: emailAddress, password })
+
+      if ('error' in result) {
+        Alert.alert('Error', result.error)
+      } else {
+        // Login successful - store user data and token
+        await AsyncStorage.setItem('authToken', result.token)
+        await AsyncStorage.setItem('user', JSON.stringify(result.user))
+        await AsyncStorage.setItem('authType', 'regular')
+
+        Alert.alert('Success', 'Login successful!')
+        router.replace('/(tabs)/' as any)
+      }
+    } catch (err) {
+      console.error('Sign in error', err)
+      Alert.alert('Error', 'Sign in failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Handle Google OAuth sign-in
   const onGoogleSignIn = async () => {
     setGoogleLoading(true)
@@ -35,7 +64,7 @@ export default function SignInScreen() {
 
       if (createdSessionId) {
         setActiveSession({ session: createdSessionId })
-        router.replace('/(tabs)')
+        router.replace('/(tabs)/index' as any)
       }
     } catch (err) {
       console.error('OAuth error', err)
@@ -63,7 +92,7 @@ export default function SignInScreen() {
 
       if (signInAttempt.status === 'complete') {
         await setActive({ session: signInAttempt.createdSessionId })
-        router.replace('/(tabs)')
+        router.replace('/(tabs)/' as any)
       } else {
         console.error(JSON.stringify(signInAttempt, null, 2))
         Alert.alert('Error', 'Sign in failed')
@@ -78,88 +107,88 @@ export default function SignInScreen() {
 
   return (
     <>
-    <Stack.Screen
-      options={{
-        title: 'Sign In',
-      }} />
-        <View style={styles.container}>
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.formContainer}>
-          <Text style={styles.welcomeText}>Welcome Back</Text>
+      <Stack.Screen
+        options={{
+          title: 'Sign In',
+        }} />
+      <View style={styles.container}>
+        <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+          <View style={styles.formContainer}>
+            <Text style={styles.welcomeText}>Welcome Back</Text>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email address"
-              placeholderTextColor="#8B9DC3"
-              value={emailAddress}
-              onChangeText={setEmailAddress}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Email Address</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your email address"
+                placeholderTextColor="#8B9DC3"
+                value={emailAddress}
+                onChangeText={setEmailAddress}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your password"
+                placeholderTextColor="#8B9DC3"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+            </View>
+
+            <TouchableOpacity style={styles.forgotPassword}>
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.loginButton, loading && styles.buttonDisabled]}
+              onPress={onRegularSignIn}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Text style={styles.loginButtonText}>Sign In</Text>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+              onPress={onGoogleSignIn}
+              disabled={googleLoading}
+            >
+              {googleLoading ? (
+                <ActivityIndicator color="#1565C0" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="logo-google" size={24} color="black" />
+                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.registerLink}>
+              <Link href={"/sign-up" as any}>
+                <Text style={styles.registerLinkText}>
+                  New patient? <Text style={styles.registerLinkBold}>Create Account</Text>
+                </Text>
+              </Link>
+            </TouchableOpacity>
           </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              placeholderTextColor="#8B9DC3"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
-
-          <TouchableOpacity style={styles.forgotPassword}>
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.loginButton, loading && styles.buttonDisabled]}
-            onPress={onSignInPress}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="white" size="small" />
-            ) : (
-              <Text style={styles.loginButtonText}>Sign In</Text>
-            )}
-          </TouchableOpacity>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity
-            style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
-            onPress={onGoogleSignIn}
-            disabled={googleLoading}
-          >
-            {googleLoading ? (
-              <ActivityIndicator color="#1565C0" size="small" />
-            ) : (
-              <>
-                <Ionicons name="logo-google" size={24} color="black" />
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.registerLink}>
-            <Link href={"/sign-up" as any}>
-              <Text style={styles.registerLinkText}>
-                New patient? <Text style={styles.registerLinkBold}>Create Account</Text>
-              </Text>
-            </Link>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
-      </>
+        </ScrollView>
+      </View>
+    </>
   )
 }
 

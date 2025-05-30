@@ -1,7 +1,8 @@
 import React from 'react'
+import { View } from 'react-native'
 
 export default function AnalyzeScreen() {
   return (
-    <div>AnalyzeScreen</div>
+    <View>AnalyzeScreen</View>
   )
 }

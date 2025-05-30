@@ -2,11 +2,11 @@ import axios from "axios";
 
 export interface User {
   email: string;
-  fullName: string;
-  phone: string;
-  address: string;
+  fullName?: string | null;
+  phone: string | null;
+  address: string | null;
   dob: string | null;
-  role: string;
+  role?: string;
 }
 
 export interface LoginRequest {
@@ -16,11 +16,11 @@ export interface LoginRequest {
 
 export interface RegisterRequest {
   email: string;
-  password: string;
+  password?: string;
   fullName: string;
-  phone?: string;
-  address?: string;
-  dob?: string;
+  phone?: string | null;
+  address?: string | null;
+  dob?: string | null;
   role?: "guest" | "customer" | "staff" | "admin";
 }
 
@@ -56,7 +56,7 @@ export const loginUser = async (
 ): Promise<LoginResponse | AuthError> => {
   try {
     const response = await axios.post(
-      `${process.env.BASE_API_URL}/auth/login`,
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/auth/login`,
       credentials,
       {
         headers: {
@@ -97,7 +97,7 @@ export const registerUser = async (
 ): Promise<RegisterResponse | AuthError> => {
   try {
     const response = await axios.post(
-      `${process.env.BASE_API_URL}/auth/register`,
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/auth/register`,
       userData,
       {
         headers: {
@@ -133,7 +133,7 @@ export const loginWithGoogle = async (
 ): Promise<LoginResponse | AuthError> => {
   try {
     const response = await axios.post(
-      `${process.env.BASE_API_URL}/auth/google-login`,
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/auth/google-login`,
       googleData,
       {
         headers: {
