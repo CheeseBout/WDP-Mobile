@@ -11,6 +11,16 @@ export interface AnalysisResult {
   error?: string;
 }
 
+interface ServerResponse {
+  success: boolean;
+  code: number;
+  data: {
+    analyseIndex: number;
+    skinType: string;
+  }
+  message: string;
+}
+
 /**
  * Uploads an image to Firebase Storage
  * @param imageUri The local URI of the image
@@ -64,8 +74,8 @@ export const analyzeImage = async (
     });
 
     // Use a timeout to prevent hanging requests
-    const response = await axios.post(
-      `${process.env.apiBaseUrl}/predict`,
+    const response = await axios.post<ServerResponse>(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/analyse`,
       formData,
       {
         headers: {
@@ -77,7 +87,18 @@ export const analyzeImage = async (
     );
 
     console.log("Server response:", response.data);
-    return response.data;
+
+    // Transform server response to match your interface
+    if (response.data.success && response.data.data) {
+      return {
+        prediction: {
+          predictionIndex: response.data.data.analyseIndex,
+          skinType: response.data.data.skinType,
+        }
+      };
+    } else {
+      return { error: response.data.message || "Analysis failed" };
+    }
   } catch (error: any) {
     console.error("Error analyzing image:", error);
 
@@ -95,6 +116,9 @@ export const analyzeImage = async (
     } else if (error.request) {
       // The request was made but no response was received
       errorMessage = "No response from server";
+    } else if (error.code === 'ECONNABORTED') {
+      // Request timeout
+      errorMessage = "Request timeout - server took too long to respond";
     }
 
     return { error: errorMessage };

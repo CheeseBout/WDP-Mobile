@@ -1,4 +1,3 @@
-
 export interface Product {
   id: string;
   productName: string;
@@ -51,7 +50,7 @@ export const fetchProducts = async (params?: ProductsParams): Promise<ProductsRe
       });
     }
 
-    const url = `${process.env.BASE_API_URL}/products${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+    const url = `${process.env.EXPO_PUBLIC_BASE_API_URL}/products${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
     
     const response = await fetch(url, {
       method: 'GET',
@@ -74,7 +73,7 @@ export const fetchProducts = async (params?: ProductsParams): Promise<ProductsRe
 
 export const fetchProductById = async (id: string): Promise<Product | { error: string }> => {
   try {
-    const response = await fetch(`${process.env.BASE_API_URL}/products/${id}`, {
+    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/products/${id}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
