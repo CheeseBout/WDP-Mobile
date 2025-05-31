@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from "axios";
 
 export interface User {
@@ -67,6 +68,13 @@ export const loginUser = async (
     );
 
     console.log("Login response:", response.data);
+    
+    // Store token in AsyncStorage after successful login
+    if (response.data.token) {
+      await AsyncStorage.setItem('token', response.data.token);
+      console.log('Token stored in AsyncStorage');
+    }
+    
     return response.data;
   } catch (error: any) {
     console.error("Error logging in:", error);
@@ -143,6 +151,13 @@ export const loginWithGoogle = async (
       }
     );
     console.log("Google login response:", response.data);
+    
+    // Store token in AsyncStorage after successful Google login
+    if (response.data.token) {
+      await AsyncStorage.setItem('token', response.data.token);
+      console.log('Google token stored in AsyncStorage');
+    }
+    
     return response.data;
   } catch (error: any) {
     console.error("Error logging in with Google:", error);
@@ -159,5 +174,30 @@ export const loginWithGoogle = async (
       errorMessage = "No response from server";
     }
     return { error: errorMessage };
+  }
+};
+
+/**
+ * Logout user and clear stored token
+ */
+export const logoutUser = async (): Promise<void> => {
+  try {
+    await AsyncStorage.removeItem('token');
+    console.log('Token removed from AsyncStorage');
+  } catch (error) {
+    console.error('Error removing token:', error);
+  }
+};
+
+/**
+ * Get stored token from AsyncStorage
+ */
+export const getStoredToken = async (): Promise<string | null> => {
+  try {
+    const token = await AsyncStorage.getItem('token');
+    return token;
+  } catch (error) {
+    console.error('Error getting stored token:', error);
+    return null;
   }
 };

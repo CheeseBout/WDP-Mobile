@@ -46,7 +46,7 @@ export default function SignInScreen() {
         await AsyncStorage.setItem('authType', 'regular')
 
         Alert.alert('Success', 'Login successful!')
-        router.replace('/(tabs)/' as any)
+        router.replace('/(tabs)/home' as any)
       }
     } catch (err) {
       console.error('Sign in error', err)
@@ -64,7 +64,7 @@ export default function SignInScreen() {
 
       if (createdSessionId) {
         setActiveSession({ session: createdSessionId })
-        router.replace('/(tabs)/index' as any)
+        router.replace('/(tabs)/home' as any)
       }
     } catch (err) {
       console.error('OAuth error', err)
@@ -92,7 +92,7 @@ export default function SignInScreen() {
 
       if (signInAttempt.status === 'complete') {
         await setActive({ session: signInAttempt.createdSessionId })
-        router.replace('/(tabs)/' as any)
+        router.replace('/(tabs)/home' as any)
       } else {
         console.error(JSON.stringify(signInAttempt, null, 2))
         Alert.alert('Error', 'Sign in failed')

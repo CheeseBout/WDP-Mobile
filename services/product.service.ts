@@ -14,6 +14,7 @@ export interface Product {
   reviews: any[];
   createdAt: string;
   updatedAt: string;
+  averageRating: number;
 }
 
 export interface ProductsResponse {

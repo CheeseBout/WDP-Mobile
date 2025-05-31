@@ -61,7 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
                         <TouchableOpacity
                             style={styles.iconButton}
                             activeOpacity={0.8}
-                            onPress={() => router.push('/cart' as any)}
+                            onPress={() => router.push('/(tabs)/cart')}
                         >
                             <Ionicons name="cart-outline" size={24} color="white" />
                             {cartCount > 0 && (
@@ -91,7 +91,7 @@ export const Header: React.FC<HeaderProps> = ({
 const styles = StyleSheet.create({
     headerContainer: {
         backgroundColor: '#1565C0',
-        paddingTop: 15,
+        paddingTop: 30,
         paddingBottom: 15,
     },
     headerContent: {
