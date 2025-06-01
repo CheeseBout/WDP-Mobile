@@ -1,20 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useFocusEffect } from '@react-navigation/native'
-import React from 'react'
+import React, { useCallback, useState } from 'react'
 import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View
 } from 'react-native'
 import { SignOutButton } from '../../components/SignOutButton'
 import { User } from '../../services/auth.service'
+import { useRouter } from 'expo-router'
 
 export default function ProfileScreen() {
-  const [user, setUser] = React.useState<User | null>(null)
+  const [user, setUser] = useState<User | null>(null)
+  const router = useRouter()
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       const loadUser = async () => {
         try {
           const userData = await AsyncStorage.getItem('user')
@@ -66,12 +69,19 @@ export default function ProfileScreen() {
               </Text>
             </View>
 
-            <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Role</Text>
+            <TouchableOpacity style={styles.infoItem} onPress={() => router.push('/(stack)/order')}>
+              <Text style={styles.infoLabel}>Orders</Text>
               <Text style={styles.infoValue}>
-                {user?.role || 'Customer'}
+                > 
               </Text>
-            </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.infoItem} onPress={() => router.push('/(stack)/analysis')}>
+              <Text style={styles.infoLabel}>Analysis</Text>
+              <Text style={styles.infoValue}>
+                > 
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.actionsSection}>
