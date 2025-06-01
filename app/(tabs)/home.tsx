@@ -71,6 +71,7 @@ export default function HomeScreen() {
       const result = await addToCart({ productId, quantity: 1 });
       if (result.success) {
         Alert.alert('Success', 'Item added to cart');
+        // Remove cart refresh trigger - Header will auto-refresh
       } else {
         Alert.alert('Error', result.message);
       }
@@ -204,7 +205,6 @@ export default function HomeScreen() {
         searchTerm={searchTerm}
         onSearchChange={handleSearchChange}
         onSearchSubmit={handleSearch}
-        cartCount={2}
         notificationCount={3}
       />
 

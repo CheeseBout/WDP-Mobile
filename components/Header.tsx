@@ -1,6 +1,8 @@
+import { getMyCart } from '@/services/cart.service';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
     StyleSheet,
     Text,
@@ -27,10 +29,37 @@ export const Header: React.FC<HeaderProps> = ({
     onSearchSubmit,
     showCartIcon = true,
     showNotificationIcon = true,
-    cartCount = 0,
+    cartCount,
     notificationCount = 0,
 }) => {
     const router = useRouter();
+    const [actualCartCount, setActualCartCount] = useState(0);
+
+    const loadCartCount = useCallback(async () => {
+        try {
+            const result = await getMyCart();
+            if ('error' in result) {
+                setActualCartCount(0);
+            } else {
+                // Calculate total quantity of all items in cart
+                const totalItems = result.data.items.reduce((total, item) => total + item.quantity, 0);
+                setActualCartCount(totalItems);
+            }
+        } catch (error) {
+            console.error('Error loading cart count:', error);
+            setActualCartCount(0);
+        }
+    }, []);
+
+    // Refresh cart count when screen comes into focus
+    useFocusEffect(
+        useCallback(() => {
+            loadCartCount();
+        }, [loadCartCount])
+    );
+
+    // Use provided cartCount if available, otherwise use actual cart count
+    const displayCartCount = cartCount !== undefined ? cartCount : actualCartCount;
 
     return (
         <View style={styles.headerContainer}>
@@ -64,9 +93,9 @@ export const Header: React.FC<HeaderProps> = ({
                             onPress={() => router.push('/(tabs)/cart')}
                         >
                             <Ionicons name="cart-outline" size={24} color="white" />
-                            {cartCount > 0 && (
+                            {displayCartCount > 0 && (
                                 <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>{cartCount}</Text>
+                                    <Text style={styles.badgeText}>{displayCartCount > 99 ? '99+' : displayCartCount}</Text>
                                 </View>
                             )}
                         </TouchableOpacity>
@@ -77,7 +106,7 @@ export const Header: React.FC<HeaderProps> = ({
                             <Ionicons name="notifications-outline" size={24} color="white" />
                             {notificationCount > 0 && (
                                 <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>{notificationCount}</Text>
+                                    <Text style={styles.badgeText}>{notificationCount > 99 ? '99+' : notificationCount}</Text>
                                 </View>
                             )}
                         </TouchableOpacity>
