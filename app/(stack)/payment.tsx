@@ -14,6 +14,7 @@ export default function PaymentScreen() {
 
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
+  const [processedUrls, setProcessedUrls] = useState<Set<string>>(new Set())
   const webViewRef = useRef<WebView>(null)
 
   const handleNavigationStateChange = async (navState: any) => {
@@ -23,6 +24,21 @@ export default function PaymentScreen() {
     // Check if this is the return URL from VNPay
     if (url.includes('payment-result') || url.includes('localhost:4000/payment-result')) {
       console.log('Payment return URL detected, processing...')
+      
+      // Prevent processing the same URL multiple times
+      if (processedUrls.has(url)) {
+        console.log('URL already processed, ignoring:', url)
+        return
+      }
+      
+      // Add URL to processed set
+      setProcessedUrls(prev => new Set([...prev, url]))
+      
+      if (processing) {
+        console.log('Already processing payment, ignoring duplicate...')
+        return
+      }
+
       setProcessing(true)
 
       try {
@@ -32,7 +48,7 @@ export default function PaymentScreen() {
         if (result.success && result.data?.isSuccess) {
           Alert.alert(
             'Payment Successful!',
-            `Order #${result.data.orderId} has been created and is pending staff confirmation.`,
+            `Order #${result.data.orderId || result.data.transactionId} has been created and is pending staff confirmation.`,
             [
               {
                 text: 'OK',
@@ -51,7 +67,8 @@ export default function PaymentScreen() {
               {
                 text: 'Try Again',
                 onPress: () => {
-                  // Reload the payment page
+                  // Clear processed URLs to allow retry
+                  setProcessedUrls(new Set())
                   if (webViewRef.current && paymentUrl) {
                     webViewRef.current.reload()
                   }

@@ -456,18 +456,47 @@ export const processPaymentReturn = async (returnUrl: string): Promise<VerifyPay
   console.log('Processing payment return from WebView:', returnUrl);
   
   try {
+    // Check if this payment has already been processed
+    const paymentCompleted = await AsyncStorage.getItem('paymentCompleted')
+    if (paymentCompleted) {
+      const completed = JSON.parse(paymentCompleted)
+      const timeDiff = Date.now() - completed.timestamp
+      
+      // If payment was completed within last 5 minutes, don't process again
+      if (timeDiff < 5 * 60 * 1000) {
+        console.log('Payment already processed recently, returning cached result')
+        return {
+          success: true,
+          message: 'Payment already processed',
+          data: {
+            isSuccess: true,
+            orderId: completed.orderId,
+            message: 'Payment was already processed successfully'
+          }
+        }
+      }
+    }
+
     // Use the handlePaymentReturn function we already created
     const result = await handlePaymentReturn(returnUrl);
     
-    // After successful verification, clear selected items and finalize order
+    // After successful verification, clear selected items
     if (result.success && result.data?.isSuccess) {
       console.log('Payment verified successfully, clearing selected items...');
       await clearSelectedItems();
       
-      // Call the checkout-selected API to finalize the order
-      console.log('Finalizing order with selected items...');
-      const checkoutResult = await checkoutSelectedItems();
-      console.log('Checkout selected items response:', checkoutResult);
+      // Clear checkout attempts
+      await AsyncStorage.removeItem('lastCheckoutAttempt')
+      
+      // Store payment completion to prevent duplicate processing
+      await AsyncStorage.setItem('paymentCompleted', JSON.stringify({
+        timestamp: Date.now(),
+        orderId: result.data.orderId,
+        transactionId: result.data.transactionId
+      }))
+      
+      // Don't call checkoutSelectedItems - the order is already created by the backend
+      console.log('Payment processing completed successfully');
     }
     
     return result;
