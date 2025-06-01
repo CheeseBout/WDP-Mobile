@@ -1,3 +1,4 @@
+import { addToCart } from '@/services/cart.service';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -11,18 +12,30 @@ import {
   View
 } from 'react-native';
 import { Header } from '../../components/Header';
-import { fetchProducts, Product } from '../../services/product.service';
+import { Category, fetchCategories, fetchProducts, Product } from '../../services/product.service';
 
 export default function HomeScreen() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
   const router = useRouter()
 
-  const categories = ['All', 'skincare', 'supplements', 'vitamins', 'moisturizer', 'serum'];
+  const loadCategories = async () => {
+    try {
+      const result = await fetchCategories();
+      if ('error' in result) {
+        console.error('Error loading categories:', result.error);
+      } else {
+        setCategories(result.data.categories);
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  };
 
   const loadProducts = async (searchQuery: string = appliedSearchTerm) => {
     try {
@@ -32,7 +45,7 @@ export default function HomeScreen() {
         sortBy: 'createdAt',
         order: 'desc',
         ...(searchQuery && { search: searchQuery }),
-        ...(selectedCategory && selectedCategory !== 'All' && { category: selectedCategory })
+        ...(selectedCategoryId && { category: selectedCategoryId })
       });
 
       if ('error' in result) {
@@ -49,8 +62,22 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
+    loadCategories();
     loadProducts(appliedSearchTerm);
-  }, [selectedCategory, appliedSearchTerm]);
+  }, [selectedCategoryId, appliedSearchTerm]);
+
+  const handleAddToCart = async (productId: string) => {
+    try {
+      const result = await addToCart({ productId, quantity: 1 });
+      if (result.success) {
+        Alert.alert('Success', 'Item added to cart');
+      } else {
+        Alert.alert('Error', result.message);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add item to cart');
+    }
+  };
 
   const handleSearch = () => {
     setLoading(true);
@@ -62,8 +89,8 @@ export default function HomeScreen() {
     loadProducts(appliedSearchTerm);
   };
 
-  const handleCategorySelect = (category: string) => {
-    setSelectedCategory(category);
+  const handleCategorySelect = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
   };
 
   const handleSearchChange = (text: string) => {
@@ -84,6 +111,24 @@ export default function HomeScreen() {
 
   const calculateDiscountedPrice = (price: number, salePercentage: number) => {
     return price - (price * salePercentage / 100);
+  };
+
+  const getCategoryDisplayName = (category: Category) => {
+    const iconMap: Record<string, string> = {
+      'Face Care': '🧴',
+      'Hair Care': '💇',
+      'Body Care': '🧴',
+      'Makeup': '💄',
+      'Fragrances': '🌸',
+      'Over-the-Counter Medicines': '💊',
+      'Supplements & Vitamins': '🔬',
+      'First Aid & Wound Care': '🩹',
+      'Digestive Health': '🥗',
+      'Allergy & Cold Relief': '🤧'
+    };
+    
+    const icon = iconMap[category.categoryName] || '📦';
+    return `${icon} ${category.categoryName}`;
   };
 
   const renderProductCard = ({ item }: { item: Product }) => (
@@ -125,11 +170,15 @@ export default function HomeScreen() {
           </Text>
           
           <TouchableOpacity 
-            style={[styles.addButton, item.stock === 0 && styles.addButtonDisabled]} 
+            style={[styles.viewDetailsButton, item.stock === 0 && styles.viewDetailsButtonDisabled]} 
             activeOpacity={0.8}
             disabled={item.stock === 0}
+            onPress={(e) => {
+              e.stopPropagation();
+              router.push(`/(tabs)/${item.id}` as any);
+            }}
           >
-            <Text style={styles.addButtonText}>+</Text>
+            <Text style={styles.viewDetailsButtonText}>View</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -165,21 +214,37 @@ export default function HomeScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryList}
         >
-          {categories.map((category, index) => (
+          <TouchableOpacity
+            style={[
+              styles.categoryPill,
+              selectedCategoryId === '' && styles.categoryPillActive
+            ]}
+            onPress={() => handleCategorySelect('')}
+            activeOpacity={0.8}
+          >
+            <Text style={[
+              styles.categoryPillText,
+              selectedCategoryId === '' && styles.categoryPillTextActive
+            ]}>
+              🏠 All
+            </Text>
+          </TouchableOpacity>
+
+          {categories.map((category) => (
             <TouchableOpacity
-              key={index}
+              key={category._id}
               style={[
                 styles.categoryPill,
-                selectedCategory === category && styles.categoryPillActive
+                selectedCategoryId === category._id && styles.categoryPillActive
               ]}
-              onPress={() => handleCategorySelect(category)}
+              onPress={() => handleCategorySelect(category._id)}
               activeOpacity={0.8}
             >
               <Text style={[
                 styles.categoryPillText,
-                selectedCategory === category && styles.categoryPillTextActive
+                selectedCategoryId === category._id && styles.categoryPillTextActive
               ]}>
-                {category === 'All' ? '🏠 All' : `${getCategoryIcon(category)} ${category}`}
+                {getCategoryDisplayName(category)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -207,7 +272,7 @@ export default function HomeScreen() {
               <TouchableOpacity style={styles.resetButton} onPress={() => {
                 setSearchTerm('');
                 setAppliedSearchTerm('');
-                setSelectedCategory('All');
+                setSelectedCategoryId('');
               }}>
                 <Text style={styles.resetButtonText}>Reset Filters</Text>
               </TouchableOpacity>
@@ -218,17 +283,6 @@ export default function HomeScreen() {
     </View>
   );
 }
-
-const getCategoryIcon = (category: string) => {
-  switch (category) {
-    case 'skincare': return '🧴';
-    case 'supplements': return '💊';
-    case 'vitamins': return '🔬';
-    case 'moisturizer': return '💧';
-    case 'serum': return '✨';
-    default: return '📦';
-  }
-};
 
 const getStockColor = (stock: number) => {
   return stock > 10 ? '#4CAF50' : stock > 0 ? '#FF9800' : '#F44336';
@@ -397,21 +451,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
   },
-  addButton: {
+  viewDetailsButton: {
     backgroundColor: '#1565C0',
     borderRadius: 16,
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 50,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  addButtonDisabled: {
+  viewDetailsButtonDisabled: {
     backgroundColor: '#E0E0E0',
   },
-  addButtonText: {
+  viewDetailsButtonText: {
     color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,

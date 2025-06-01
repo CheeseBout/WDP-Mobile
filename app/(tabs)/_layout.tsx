@@ -68,8 +68,8 @@ export default function TabLayout() {
         name="[id]/index"
         options={{
           title: 'Product Detail',
-          tabBarButton: () => null, // Hide this screen from the tab bar
-          tabBarIcon: () => null, // No icon for this screen
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="info.circle.fill" color={color} />,
+          href: null,
         }}
       />
     </Tabs>

@@ -38,6 +38,23 @@ export interface ProductsParams {
   search?: string;
 }
 
+export interface Category {
+  _id: string;
+  categoryName: string;
+  categoryDescription: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface CategoriesResponse {
+  success: boolean;
+  data: {
+    categories: Category[];
+    total: number;
+  };
+  message: string;
+}
 
 export const fetchProducts = async (params?: ProductsParams): Promise<ProductsResponse | { error: string }> => {
   try {
@@ -90,5 +107,26 @@ export const fetchProductById = async (id: string): Promise<Product | { error: s
   } catch (error) {
     console.error('Error fetching product:', error);
     return { error: 'Failed to fetch product' };
+  }
+};
+
+export const fetchCategories = async (): Promise<CategoriesResponse | { error: string }> => {
+  try {
+    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/categories`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data: CategoriesResponse = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    return { error: 'Failed to fetch categories' };
   }
 };
