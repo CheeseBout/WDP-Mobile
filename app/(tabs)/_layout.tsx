@@ -65,9 +65,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="[id]/product-detail"
+        name="[id]/index"
         options={{
-          href: null,
+          title: 'Product Detail',
+          tabBarButton: () => null, // Hide this screen from the tab bar
+          tabBarIcon: () => null, // No icon for this screen
         }}
       />
     </Tabs>
