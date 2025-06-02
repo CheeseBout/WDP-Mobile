@@ -21,6 +21,7 @@ const MAPPING = {
   'camera.fill': 'camera-alt',
   'person.fill': 'person',
   'cart.fill': 'shopping-cart',
+  'message.fill': 'chat',
 } as IconMapping;
 
 /**

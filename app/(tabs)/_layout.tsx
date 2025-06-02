@@ -54,7 +54,14 @@ export default function TabLayout() {
         options={{
           title: 'Cart',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="cart.fill" color={color} />,
-          href: null, 
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="chatbox"
+        options={{
+          title: 'AI Chat',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="message.fill" color={color} />,
         }}
       />
       <Tabs.Screen
