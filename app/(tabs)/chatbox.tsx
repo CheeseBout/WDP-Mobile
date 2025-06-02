@@ -2,6 +2,7 @@ import { fetchAllProductsForAI, Product, searchProductsForAI } from '@/services/
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
+    Alert,
     FlatList,
     KeyboardAvoidingView,
     Platform,
@@ -238,6 +239,33 @@ export default function ChatboxScreen() {
         </View>
     );
 
+    const clearChatHistory = () => {
+        Alert.alert(
+            'Clear Chat History',
+            'Are you sure you want to clear all chat messages? This action cannot be undone.',
+            [
+                {
+                    text: 'Cancel',
+                    style: 'cancel'
+                },
+                {
+                    text: 'Clear',
+                    style: 'destructive',
+                    onPress: () => {
+                        setMessages([
+                            {
+                                id: '1',
+                                text: "Hello! I'm your pharmacy assistant. I can recommend products from our inventory based on your needs. How can I help you today?",
+                                isUser: false,
+                                timestamp: new Date()
+                            }
+                        ]);
+                    }
+                }
+            ]
+        );
+    };
+
     return (
         <View style={styles.container}>
             {/* Modern Header */}
@@ -257,8 +285,8 @@ export default function ChatboxScreen() {
                             </Text>
                         </View>
                     </View>
-                    <TouchableOpacity style={styles.headerAction}>
-                        <Ionicons name="information-circle-outline" size={24} color="#fff" />
+                    <TouchableOpacity style={styles.headerAction} onPress={clearChatHistory}>
+                        <Ionicons name="trash-outline" size={24} color="#fff" />
                     </TouchableOpacity>
                 </View>
                 {!productsLoaded && (
