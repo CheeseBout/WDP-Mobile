@@ -2,21 +2,43 @@ import axios from "axios";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { Platform } from "react-native";
 import { storage } from "../configs/firebase.config";
+import { getStoredToken } from "./auth.service";
+
+export interface RecommendedProduct {
+  recommendationId: string;
+  productId: string;
+  reason: string;
+  _id: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface AnalysisResult {
-  prediction?: {
-    predictionIndex?: number;
-    skinType?: string;
+  analysis?: {
+    userId: string;
+    imageUrl: string;
+    skinType: string;
+    analysisDate: string;
+    recommendedProducts: RecommendedProduct[];
+    _id: string;
+    createdAt: string;
+    updatedAt: string;
   };
   error?: string;
 }
 
 interface ServerResponse {
   success: boolean;
-  code: number;
   data: {
-    analyseIndex: number;
+    userId: string;
+    imageUrl: string;
     skinType: string;
+    analysisDate: string;
+    recommendedProducts: RecommendedProduct[];
+    _id: string;
+    createdAt: string;
+    updatedAt: string;
+    __v: number;
   }
   message: string;
 }
@@ -51,7 +73,7 @@ export const uploadImageToFirebase = async (
 };
 
 /**
- * Sends an image to the prediction API
+ * Sends an image to the analysis API
  * @param imageUri The local URI of the image
  * @returns Promise with the analysis result
  */
@@ -59,6 +81,11 @@ export const analyzeImage = async (
   imageUri: string
 ): Promise<AnalysisResult> => {
   try {
+    const token = await getStoredToken();
+    if (!token) {
+      return { error: "Authentication token not found. Please login again." };
+    }
+
     const formData = new FormData();
 
     // Extract file name from URI to provide a proper name for the server
@@ -75,14 +102,15 @@ export const analyzeImage = async (
 
     // Use a timeout to prevent hanging requests
     const response = await axios.post<ServerResponse>(
-      `${process.env.EXPO_PUBLIC_BASE_API_URL}/analyse`,
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/analyse/upload`,
       formData,
       {
         headers: {
           "Content-Type": "multipart/form-data",
+          "Authorization": `Bearer ${token}`,
           Accept: "application/json",
         },
-        timeout: 10000,
+        timeout: 30000, // Increased timeout for image processing
       }
     );
 
@@ -91,10 +119,7 @@ export const analyzeImage = async (
     // Transform server response to match your interface
     if (response.data.success && response.data.data) {
       return {
-        prediction: {
-          predictionIndex: response.data.data.analyseIndex,
-          skinType: response.data.data.skinType,
-        }
+        analysis: response.data.data
       };
     } else {
       return { error: response.data.message || "Analysis failed" };
@@ -122,5 +147,31 @@ export const analyzeImage = async (
     }
 
     return { error: errorMessage };
+  }
+};
+
+/**
+ * Get product details by ID
+ * @param productId The product ID
+ * @returns Promise with product details
+ */
+export const getProductById = async (productId: string) => {
+  try {
+    const token = await getStoredToken();
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/products/${productId}`,
+      {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 10000,
+      }
+    );
+
+    return response.data;
+  } catch (error: any) {
+    console.error("Error fetching product details:", error);
+    return null;
   }
 };
