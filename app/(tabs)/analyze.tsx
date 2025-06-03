@@ -1,9 +1,11 @@
 import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   ScrollView,
   StyleSheet,
@@ -11,14 +13,30 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import { AnalysisResult, analyzeImage, uploadImageToFirebase } from "../../services/analyze.service";
+import { AnalysisResult, analyzeImage, getProductById, RecommendedProduct, uploadImageToFirebase } from "../../services/analyze.service";
+
+interface Product {
+  _id: string;
+  name: string;
+  price: number;
+  imageUrl: string;
+  description: string;
+  category: string;
+}
+
+interface ProductWithDetails extends RecommendedProduct {
+  productDetails?: Product;
+  loading?: boolean;
+}
 
 export default function AnalyzeScreen() {
-   const [image, setImage] = useState<string | null>(null);
-   const [uploading, setUploading] = useState<boolean>(false);
-   const [firebaseUrl, setFirebaseUrl] = useState<string | null>(null);
-   const [prediction, setPrediction] = useState<AnalysisResult | null>(null);
-   const [loading, setLoading] = useState<boolean>(false);
+  const router = useRouter();
+  const [image, setImage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [firebaseUrl, setFirebaseUrl] = useState<string | null>(null);
+  const [prediction, setPrediction] = useState<AnalysisResult | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [productsWithDetails, setProductsWithDetails] = useState<ProductWithDetails[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -40,7 +58,7 @@ export default function AnalyzeScreen() {
   const takePicture = async () => {
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Keep for backward compatibility
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         aspect: [4, 3],
         quality: 0.8,
@@ -59,7 +77,7 @@ export default function AnalyzeScreen() {
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Keep for backward compatibility
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         aspect: [4, 3],
         quality: 0.8,
@@ -78,6 +96,7 @@ export default function AnalyzeScreen() {
   const uploadToFirebase = async (uri: string) => {
     setUploading(true);
     setPrediction(null);
+    setProductsWithDetails([]);
 
     try {
       const downloadUrl = await uploadImageToFirebase(uri);
@@ -88,6 +107,39 @@ export default function AnalyzeScreen() {
       Alert.alert("Error", "Failed to upload image");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const fetchProductDetails = async (products: RecommendedProduct[]) => {
+    const updatedProducts: ProductWithDetails[] = products.map(product => ({
+      ...product,
+      loading: true
+    }));
+    
+    setProductsWithDetails(updatedProducts);
+
+    for (let i = 0; i < products.length; i++) {
+      try {
+        const productDetails = await getProductById(products[i].productId);
+        
+        setProductsWithDetails(prev => 
+          prev.map((item, index) => 
+            index === i 
+              ? { ...item, productDetails: productDetails?.data, loading: false }
+              : item
+          )
+        );
+      } catch (error) {
+        console.error(`Error fetching product ${products[i].productId}:`, error);
+        
+        setProductsWithDetails(prev => 
+          prev.map((item, index) => 
+            index === i 
+              ? { ...item, loading: false }
+              : item
+          )
+        );
+      }
     }
   };
 
@@ -103,6 +155,11 @@ export default function AnalyzeScreen() {
       const result = await analyzeImage(image);
       console.log("Prediction result:", result);
       setPrediction(result);
+
+      // If analysis was successful and has recommended products, fetch product details
+      if (result.analysis && result.analysis.recommendedProducts.length > 0) {
+        await fetchProductDetails(result.analysis.recommendedProducts);
+      }
     } catch (error) {
       console.error("Prediction failed:", error);
       Alert.alert("Error", "Skin analysis failed. Please try again.");
@@ -110,6 +167,49 @@ export default function AnalyzeScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const renderProductItem = ({ item }: { item: ProductWithDetails }) => (
+    <TouchableOpacity 
+      style={styles.productCard}
+      onPress={() => {
+        if (item.productDetails) {
+          router.push(`/(tabs)/${item.productId}` as any);
+        }
+      }}
+    >
+      {item.loading ? (
+        <View style={styles.productLoading}>
+          <ActivityIndicator size="small" color="#1565C0" />
+          <Text style={styles.productLoadingText}>Loading...</Text>
+        </View>
+      ) : item.productDetails ? (
+        <>
+          <Image 
+            source={{ uri: item.productDetails.imageUrl }} 
+            style={styles.productImage}
+            resizeMode="cover"
+          />
+          <View style={styles.productInfo}>
+            <Text style={styles.productName}>{item.productDetails.name}</Text>
+            <Text style={styles.productPrice}>${item.productDetails.price}</Text>
+            <Text style={styles.recommendationReason}>{item.reason}</Text>
+            <Text style={styles.productCategory}>{item.productDetails.category}</Text>
+          </View>
+        </>
+      ) : (
+        <View style={styles.productError}>
+          <Text style={styles.errorText}>Failed to load product</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
+  const resetAnalysis = () => {
+    setPrediction(null);
+    setFirebaseUrl(null);
+    setImage(null);
+    setProductsWithDetails([]);
   };
 
   return (
@@ -184,27 +284,53 @@ export default function AnalyzeScreen() {
                 <Text style={styles.errorText}>{prediction.error}</Text>
                 <TouchableOpacity 
                   style={styles.retryButton}
-                  onPress={() => {
-                    setPrediction(null);
-                    setFirebaseUrl(null);
-                    setImage(null);
-                  }}
+                  onPress={resetAnalysis}
                 >
                   <Text style={styles.retryButtonText}>Try Again</Text>
                 </TouchableOpacity>
               </View>
-            ) : prediction.prediction ? (
-              <View style={styles.successResult}>
-                <Text style={styles.successTitle}>Skin Type Detected</Text>
-                <Text style={styles.skinType}>{prediction.prediction.skinType}</Text>
-                <Text style={styles.analysisId}>Analysis ID: #{prediction.prediction.predictionIndex}</Text>
-              </View>
-            ) : (
-              <View style={styles.infoResult}>
-                <Text style={styles.infoTitle}>No Data Available</Text>
-                <Text style={styles.infoText}>The analysis completed but no data was returned</Text>
-              </View>
-            )}
+            ) : prediction.analysis ? (
+              <>
+                <View style={styles.successResult}>
+                  <Text style={styles.successTitle}>Skin Type Detected</Text>
+                  <Text style={styles.skinType}>{prediction.analysis.skinType.toUpperCase()}</Text>
+                  <Text style={styles.analysisDate}>
+                    Analyzed on {new Date(prediction.analysis.analysisDate).toLocaleDateString()}
+                  </Text>
+                  
+                  {prediction.analysis.recommendedProducts.length > 0 ? (
+                    <Text style={styles.recommendationsCount}>
+                      {prediction.analysis.recommendedProducts.length} products recommended
+                    </Text>
+                  ) : (
+                    <Text style={styles.noRecommendationsText}>
+                      No product recommendations available
+                    </Text>
+                  )}
+                </View>
+
+                {prediction.analysis.recommendedProducts.length > 0 && (
+                  <View style={styles.recommendationsSection}>
+                    <Text style={styles.sectionTitle}>Recommended Products</Text>
+                    <FlatList
+                      data={productsWithDetails}
+                      keyExtractor={(item) => item._id}
+                      renderItem={renderProductItem}
+                      showsVerticalScrollIndicator={false}
+                      scrollEnabled={false}
+                      contentContainerStyle={styles.productsList}
+                    />
+                  </View>
+                )}
+
+                <TouchableOpacity 
+                  style={styles.newAnalysisButton}
+                  onPress={resetAnalysis}
+                >
+                  <Text style={styles.newAnalysisButtonText}>New Analysis</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </View>
         )}
       </ScrollView>
@@ -444,5 +570,115 @@ const styles = StyleSheet.create({
     color: '#1565C0',
     fontSize: 16,
     textAlign: 'center',
+  },
+  recommendationsCount: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '500',
+    marginTop: 10,
+  },
+  noRecommendationsText: {
+    fontSize: 14,
+    color: '#90CAF9',
+    fontWeight: '500',
+    marginTop: 10,
+  },
+  analysisDate: {
+    fontSize: 12,
+    color: '#90CAF9',
+    marginTop: 5,
+  },
+  recommendationsSection: {
+    marginTop: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1565C0',
+    marginBottom: 15,
+  },
+  productsList: {
+    paddingBottom: 10,
+  },
+  productCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 12,
+    shadowColor: '#1565C0',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E3F2FD',
+    flexDirection: 'row',
+  },
+  productImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  productInfo: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  productName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1565C0',
+    marginBottom: 4,
+  },
+  productPrice: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2E7D32',
+    marginBottom: 4,
+  },
+  recommendationReason: {
+    fontSize: 11,
+    color: '#666',
+    fontStyle: 'italic',
+    marginBottom: 4,
+  },
+  productCategory: {
+    fontSize: 10,
+    color: '#90CAF9',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  productLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingVertical: 20,
+  },
+  productLoadingText: {
+    marginLeft: 8,
+    color: '#1565C0',
+    fontSize: 12,
+  },
+  productError: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  newAnalysisButton: {
+    backgroundColor: '#42A5F5',
+    padding: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  newAnalysisButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
