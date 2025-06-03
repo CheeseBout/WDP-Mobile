@@ -135,6 +135,10 @@ export default function ProfileScreen() {
               </Text>
             </View>
 
+            <TouchableOpacity style={styles.editProfileButton} onPress={() => router.push('/(stack)/edit-profile')}>
+              <Text style={styles.editProfileButtonText}>Edit Profile</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.infoItem} onPress={() => router.push('/(stack)/order')}>
               <Text style={styles.infoLabel}>Orders</Text>
               <Text style={styles.infoValue}>
@@ -265,6 +269,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  editProfileButton: {
+    backgroundColor: '#1565C0',
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginVertical: 15,
+    shadowColor: '#1565C0',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  editProfileButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',

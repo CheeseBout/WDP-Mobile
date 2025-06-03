@@ -59,6 +59,28 @@ export interface UserProfileResponse {
   updatedAt: string;
 }
 
+export interface UpdateUserRequest {
+  fullName?: string;
+  phone?: string | null;
+  address?: string | null;
+  role?: string;
+}
+
+export interface UpdateUserResponse {
+  success: boolean;
+  code: number;
+  data: {
+    _id: string;
+    fullName: string;
+    email: string;
+    role: string;
+    phone: string | null;
+    address: string | null;
+    updatedAt: string;
+  };
+  message: string;
+}
+
 /**
  * Get current user profile
  * @param token Authentication token
@@ -242,6 +264,79 @@ export const loginWithGoogle = async (
     } else if (error.request) {
       errorMessage = "No response from server";
     }
+    return { error: errorMessage };
+  }
+};
+
+/**
+ * Update user profile
+ * @param userId User ID to update
+ * @param updateData Data to update
+ * @param token Authentication token
+ * @returns Promise with updated user profile or error
+ */
+export const updateUserProfile = async (
+  userId: string,
+  updateData: UpdateUserRequest,
+  token: string
+): Promise<UpdateUserResponse | AuthError> => {
+  try {
+    const response = await axios.patch(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/users/${userId}`,
+      updateData,
+      {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 10000,
+      }
+    );
+
+    console.log("Update profile response:", response.data);
+    
+    // Update stored user data if successful
+    if (response.data.success && response.data.data) {
+      // Get current user data to preserve dob
+      const currentUserData = await AsyncStorage.getItem('user');
+      let currentDob = null;
+      if (currentUserData) {
+        const parsedCurrentUser = JSON.parse(currentUserData);
+        currentDob = parsedCurrentUser.dob;
+      }
+
+      const updatedProfile = {
+        id: response.data.data._id,
+        fullName: response.data.data.fullName,
+        email: response.data.data.email,
+        role: response.data.data.role,
+        phone: response.data.data.phone,
+        address: response.data.data.address,
+        dob: currentDob, // Preserve existing dob
+        createdAt: new Date().toISOString(),
+        updatedAt: response.data.data.updatedAt,
+      };
+      
+      await AsyncStorage.setItem('user', JSON.stringify(updatedProfile));
+      console.log('Updated user profile stored in AsyncStorage');
+    }
+    
+    return response.data;
+  } catch (error: any) {
+    console.error("Error updating profile:", error);
+
+    let errorMessage = "Failed to update profile";
+    if (error.response) {
+      console.error("Response data:", error.response.data);
+      console.error("Response status:", error.response.status);
+      errorMessage = `Update failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = "No response from server";
+    }
+
     return { error: errorMessage };
   }
 };
