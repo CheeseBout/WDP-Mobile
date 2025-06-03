@@ -40,9 +40,8 @@ export default function SignInScreen() {
       if ('error' in result) {
         Alert.alert('Error', result.error)
       } else {
-        // Login successful - store user data and token
+        // Login successful - token and user profile are already stored in loginUser function
         await AsyncStorage.setItem('authToken', result.token)
-        await AsyncStorage.setItem('user', JSON.stringify(result.user))
         await AsyncStorage.setItem('authType', 'regular')
 
         Alert.alert('Success', 'Login successful!')

@@ -47,6 +47,57 @@ export interface GoogleLoginRequest {
   photo?: string;
 }
 
+export interface UserProfileResponse {
+  id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  phone: string | null;
+  address: string | null;
+  dob: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Get current user profile
+ * @param token Authentication token
+ * @returns Promise with user profile or error
+ */
+export const getUserProfile = async (token: string): Promise<UserProfileResponse | AuthError> => {
+  try {
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/auth/my-profile`,
+      {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 10000,
+      }
+    );
+
+    console.log("Profile response:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error("Error fetching profile:", error);
+
+    let errorMessage = "Failed to fetch profile";
+    if (error.response) {
+      console.error("Response data:", error.response.data);
+      console.error("Response status:", error.response.status);
+      errorMessage = `Profile fetch failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = "No response from server";
+    }
+
+    return { error: errorMessage };
+  }
+};
+
 /**
  * Login user with email and password
  * @param credentials Login credentials
@@ -73,6 +124,15 @@ export const loginUser = async (
     if (response.data.token) {
       await AsyncStorage.setItem('token', response.data.token);
       console.log('Token stored in AsyncStorage');
+      
+      // Fetch and store user profile
+      const profileResult = await getUserProfile(response.data.token);
+      if (!('error' in profileResult)) {
+        await AsyncStorage.setItem('user', JSON.stringify(profileResult));
+        console.log('User profile stored in AsyncStorage:', profileResult);
+      } else {
+        console.error('Failed to fetch profile:', profileResult.error);
+      }
     }
     
     return response.data;
@@ -156,6 +216,15 @@ export const loginWithGoogle = async (
     if (response.data.token) {
       await AsyncStorage.setItem('token', response.data.token);
       console.log('Google token stored in AsyncStorage');
+      
+      // Fetch and store user profile
+      const profileResult = await getUserProfile(response.data.token);
+      if (!('error' in profileResult)) {
+        await AsyncStorage.setItem('user', JSON.stringify(profileResult));
+        console.log('Google user profile stored in AsyncStorage:', profileResult);
+      } else {
+        console.error('Failed to fetch Google profile:', profileResult.error);
+      }
     }
     
     return response.data;
@@ -201,3 +270,4 @@ export const getStoredToken = async (): Promise<string | null> => {
     return null;
   }
 };
+

@@ -6,41 +6,100 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native'
 import { SignOutButton } from '../../components/SignOutButton'
 import { User } from '../../services/auth.service'
 import { useRouter } from 'expo-router'
 
+interface UserProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  phone: string | null;
+  address: string | null;
+  dob: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function ProfileScreen() {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<UserProfile | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const router = useRouter()
+
+  const loadUser = useCallback(async () => {
+    try {
+      setLoading(true)
+      const userData = await AsyncStorage.getItem('user')
+      console.log('Raw user data from AsyncStorage:', userData)
+      
+      if (userData) {
+        const parsedUser = JSON.parse(userData)
+        console.log('Parsed user data:', parsedUser)
+        setUser(parsedUser)
+      } else {
+        console.log('No user data found in AsyncStorage')
+        setUser(null)
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error)
+      setUser(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await loadUser()
+    setRefreshing(false)
+  }, [loadUser])
 
   useFocusEffect(
     useCallback(() => {
-      const loadUser = async () => {
-        try {
-          const userData = await AsyncStorage.getItem('user')
-          if (userData) {
-            setUser(JSON.parse(userData))
-          }
-        } catch (error) {
-          console.error('Error loading user data:', error)
-        }
-      }
-      
       loadUser()
-    }, [])
+    }, [loadUser])
   )
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#1565C0" />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    )
+  }
+
+  if (!user) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>No user data found</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadUser}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollContainer} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <View style={styles.profileContainer}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatarPlaceholder}>
               <Text style={styles.avatarText}>
-                {user?.fullName?.charAt(0) || user?.email?.charAt(0) || '?'}
+                {user?.fullName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || '?'}
               </Text>
             </View>
           </View>
@@ -49,12 +108,19 @@ export default function ProfileScreen() {
             {user?.fullName || 'User'}
           </Text>
           <Text style={styles.userEmail}>
-            {user?.email}
+            {user?.email || 'No email'}
           </Text>
 
           <View style={styles.infoSection}>
             <Text style={styles.sectionTitle}>Account Information</Text>
             
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Date of birth</Text>
+              <Text style={styles.infoValue}>
+                {user?.dob ? user?.dob : 'Not provided yet'}
+              </Text>
+            </View>
+
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Phone</Text>
               <Text style={styles.infoValue}>
@@ -176,5 +242,31 @@ const styles = StyleSheet.create({
   },
   actionsSection: {
     alignItems: 'center',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#1565C0',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#1565C0',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 })
