@@ -43,6 +43,24 @@ interface ServerResponse {
   message: string;
 }
 
+export interface AnalysisHistoryItem {
+  _id: string;
+  userId: string;
+  imageUrl: string;
+  skinType: string;
+  analysisDate: string;
+  recommendedProducts: RecommendedProduct[];
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface AnalysisHistoryResponse {
+  success: boolean;
+  data: AnalysisHistoryItem[];
+  message: string;
+}
+
 /**
  * Uploads an image to Firebase Storage
  * @param imageUri The local URI of the image
@@ -172,6 +190,37 @@ export const getProductById = async (productId: string) => {
     return response.data;
   } catch (error: any) {
     console.error("Error fetching product details:", error);
+    return null;
+  }
+};
+
+/**
+ * Get user's analysis history
+ * @returns Promise with analysis history or null
+ */
+export const getUserAnalysisHistory = async (): Promise<AnalysisHistoryResponse | null> => {
+  try {
+    const token = await getStoredToken();
+    if (!token) {
+      console.error("No authentication token found");
+      return null;
+    }
+
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/analyse/user-analyses`,
+      {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 10000,
+      }
+    );
+
+    console.log("Analysis history response:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error("Error fetching analysis history:", error);
     return null;
   }
 };

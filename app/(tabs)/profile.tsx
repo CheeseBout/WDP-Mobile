@@ -140,14 +140,14 @@ export default function ProfileScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.infoItem} onPress={() => router.push('/(stack)/order')}>
-              <Text style={styles.infoLabel}>Orders</Text>
+              <Text style={styles.infoLabel}>Orders history</Text>
               <Text style={styles.infoValue}>
                 > 
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.infoItem} onPress={() => router.push('/(stack)/analysis')}>
-              <Text style={styles.infoLabel}>Analysis</Text>
+              <Text style={styles.infoLabel}>Analysis history</Text>
               <Text style={styles.infoValue}>
                 > 
               </Text>

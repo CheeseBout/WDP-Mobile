@@ -282,7 +282,7 @@ export const updateUserProfile = async (
 ): Promise<UpdateUserResponse | AuthError> => {
   try {
     const response = await axios.patch(
-      `${process.env.EXPO_PUBLIC_BASE_API_URL}/users/${userId}`,
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/users/profile`,
       updateData,
       {
         headers: {
