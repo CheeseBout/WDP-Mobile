@@ -1,19 +1,27 @@
 import { getStoredToken } from '@/services/auth.service'
 import { addToCart } from '@/services/cart.service'
-import { fetchProductById, Product } from '@/services/product.service'
+import { createProductReview, fetchProductById, fetchProductReviews, Product, Review } from '@/services/product.service'
 import { Ionicons } from '@expo/vector-icons'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams()
   const router = useRouter()
   const [product, setProduct] = useState<Product | null>(null)
+  const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
+  const [reviewsLoading, setReviewsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [addingToCart, setAddingToCart] = useState(false)
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [reviewRating, setReviewRating] = useState(5)
+  const [reviewContent, setReviewContent] = useState('')
+  const [submittingReview, setSubmittingReview] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -25,13 +33,46 @@ export default function ProductDetailScreen() {
           setError(result.error)
         } else {
           setProduct(result)
+          // Load reviews after product is loaded
+          loadReviews(id)
         }
         setLoading(false)
       }
     }
 
+    const loadCurrentUser = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('user')
+        if (userData) {
+          const user = JSON.parse(userData)
+          setCurrentUserId(user.id)
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error)
+      }
+    }
+
     loadProduct()
+    loadCurrentUser()
   }, [id])
+
+  const loadReviews = async (productId: string) => {
+    setReviewsLoading(true)
+    try {
+      const result = await fetchProductReviews(productId)
+      if ('error' in result) {
+        console.error('Error loading reviews:', result.error)
+        setReviews([])
+      } else {
+        setReviews(result.data)
+      }
+    } catch (error) {
+      console.error('Error loading reviews:', error)
+      setReviews([])
+    } finally {
+      setReviewsLoading(false)
+    }
+  }
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -44,6 +85,61 @@ export default function ProductDetailScreen() {
   const calculateDiscountedPrice = (price: number, salePercentage: number) => {
     return price - (price * salePercentage / 100)
   }
+
+  const formatReviewDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  const renderStars = (rating: number) => {
+    return renderRatingStars(rating)
+  }
+
+  const renderRatingStars = (currentRating: number, onRatingPress?: (rating: number) => void) => {
+    const stars = []
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <TouchableOpacity
+          key={i}
+          onPress={() => onRatingPress && onRatingPress(i)}
+          disabled={!onRatingPress}
+        >
+          <Ionicons
+            name={i <= currentRating ? 'star' : 'star-outline'}
+            size={onRatingPress ? 24 : 16}
+            color={i <= currentRating ? '#FFD700' : '#ccc'}
+            style={{ marginHorizontal: 2 }}
+          />
+        </TouchableOpacity>
+      )
+    }
+    return <View style={styles.starsContainer}>{stars}</View>
+  }
+
+  const renderReviewItem = (review: Review) => (
+    <View key={review._id} style={styles.reviewItem}>
+      <View style={styles.reviewHeader}>
+        <View style={styles.reviewUserInfo}>
+          <View style={styles.userAvatar}>
+            <Text style={styles.userAvatarText}>
+              {review.userId.fullName.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.userDetails}>
+            <Text style={styles.reviewUserName}>{review.userId.fullName}</Text>
+            <Text style={styles.reviewDate}>{formatReviewDate(review.createdAt)}</Text>
+          </View>
+        </View>
+        <View style={styles.ratingContainer}>
+          {renderStars(review.rating)}
+        </View>
+      </View>
+      <Text style={styles.reviewContent}>{review.content}</Text>
+    </View>
+  )
 
   const handleAddToCart = async () => {
     if (!product || product.stock === 0) return;
@@ -77,6 +173,46 @@ export default function ProductDetailScreen() {
       setAddingToCart(false);
     }
   };
+
+  const submitReview = async () => {
+    if (!currentUserId || !product) {
+      Alert.alert('Error', 'Please log in to submit a review')
+      return
+    }
+
+    if (!reviewContent.trim()) {
+      Alert.alert('Error', 'Please enter your review content')
+      return
+    }
+
+    setSubmittingReview(true)
+    try {
+      const reviewData = {
+        productId: product.id,
+        userId: currentUserId,
+        rating: reviewRating,
+        content: reviewContent.trim()
+      }
+
+      const result = await createProductReview(reviewData)
+      
+      if ('error' in result) {
+        Alert.alert('Error', result.error)
+      } else {
+        Alert.alert('Success', 'Review submitted successfully!')
+        setShowReviewModal(false)
+        setReviewContent('')
+        setReviewRating(5)
+        // Reload reviews to show the new one
+        loadReviews(product.id)
+      }
+    } catch (error) {
+      console.error('Error submitting review:', error)
+      Alert.alert('Error', 'Failed to submit review. Please try again.')
+    } finally {
+      setSubmittingReview(false)
+    }
+  }
 
   const increaseQuantity = () => {
     if (product && quantity < product.stock) {
@@ -185,6 +321,46 @@ export default function ProductDetailScreen() {
             <Text style={styles.sectionTitle}>Ingredients</Text>
             <Text style={styles.description}>{product.ingredients}</Text>
           </View>
+
+          {/* Reviews Section */}
+          <View style={styles.section}>
+            <View style={styles.reviewsHeader}>
+              <Text style={styles.sectionTitle}>Reviews</Text>
+              <View style={styles.reviewActions}>
+                {reviewsLoading ? (
+                  <ActivityIndicator size="small" color="#1565C0" />
+                ) : (
+                  <Text style={styles.reviewsCount}>({reviews.length})</Text>
+                )}
+                {currentUserId && (
+                  <TouchableOpacity 
+                    style={styles.addReviewButton}
+                    onPress={() => setShowReviewModal(true)}
+                  >
+                    <Ionicons name="add" size={16} color="white" />
+                    <Text style={styles.addReviewButtonText}>Add Review</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            
+            {reviewsLoading ? (
+              <View style={styles.reviewsLoading}>
+                <ActivityIndicator size="large" color="#1565C0" />
+                <Text style={styles.loadingText}>Loading reviews...</Text>
+              </View>
+            ) : reviews.length > 0 ? (
+              <View style={styles.reviewsList}>
+                {reviews.map(renderReviewItem)}
+              </View>
+            ) : (
+              <View style={styles.noReviews}>
+                <Ionicons name="chatbubble-outline" size={40} color="#ccc" />
+                <Text style={styles.noReviewsText}>No reviews yet</Text>
+                <Text style={styles.noReviewsSubtext}>Be the first to review this product</Text>
+              </View>
+            )}
+          </View>
         </View>
       </ScrollView>
       
@@ -222,6 +398,67 @@ export default function ProductDetailScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Review Modal */}
+      <Modal
+        visible={showReviewModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowReviewModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Write a Review</Text>
+              <TouchableOpacity 
+                onPress={() => setShowReviewModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.ratingSection}>
+              <Text style={styles.ratingLabel}>Rating</Text>
+              {renderRatingStars(reviewRating, setReviewRating)}
+            </View>
+
+            <View style={styles.contentSection}>
+              <Text style={styles.contentLabel}>Your Review</Text>
+              <TextInput
+                style={styles.reviewInput}
+                placeholder="Share your experience with this product..."
+                multiline
+                numberOfLines={4}
+                value={reviewContent}
+                onChangeText={setReviewContent}
+                textAlignVertical="top"
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={() => setShowReviewModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.submitButton, submittingReview && styles.submitButtonDisabled]}
+                onPress={submitReview}
+                disabled={submittingReview}
+              >
+                {submittingReview ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Submit Review</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -445,4 +682,130 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  reviewsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  reviewActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reviewsCount: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+    marginRight: 10,
+  },
+  addReviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1565C0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  addReviewButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  ratingSection: {
+    marginBottom: 20,
+  },
+  ratingLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 10,
+  },
+  contentSection: {
+    marginBottom: 30,
+  },
+  contentLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 10,
+  },
+  reviewInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    padding: 15,
+    fontSize: 16,
+    minHeight: 100,
+    backgroundColor: '#f8f8f8',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  cancelButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 12,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  submitButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 12,
+    backgroundColor: '#1565C0',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // ...existing styles...
 })

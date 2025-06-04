@@ -1,3 +1,5 @@
+import { getStoredToken } from './auth.service';
+
 export interface Product {
   id: string;
   productName: string;
@@ -53,6 +55,48 @@ export interface CategoriesResponse {
     categories: Category[];
     total: number;
   };
+  message: string;
+}
+
+export interface ReviewUser {
+  _id: string;
+  email: string;
+  fullName: string;
+}
+
+export interface ReviewProduct {
+  productName: string;
+  price: number;
+  id: string;
+}
+
+export interface Review {
+  _id: string;
+  userId: ReviewUser;
+  productId: ReviewProduct;
+  rating: number;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+export interface ReviewsResponse {
+  success: boolean;
+  data: Review[];
+  message: string;
+}
+
+export interface CreateReviewRequest {
+  productId: string;
+  userId: string;
+  rating: number;
+  content: string;
+}
+
+export interface CreateReviewResponse {
+  success: boolean;
+  data: Review;
   message: string;
 }
 
@@ -208,5 +252,55 @@ export const searchProductsForAI = (products: Product[], query: string): Product
   } catch (error) {
     console.error('Error searching products for AI:', error);
     return [];
+  }
+};
+
+export const fetchProductReviews = async (productId: string): Promise<ReviewsResponse | { error: string }> => {
+  try {
+    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews?productId=${productId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data: ReviewsResponse = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching product reviews:', error);
+    return { error: 'Failed to fetch product reviews' };
+  }
+};
+
+export const createProductReview = async (reviewData: CreateReviewRequest): Promise<CreateReviewResponse | { error: string }> => {
+  try {
+    // Get the authentication token
+    const token = await getStoredToken();
+    if (!token) {
+      return { error: "Authentication token not found. Please login again." };
+    }
+
+    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(reviewData),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data: CreateReviewResponse = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error creating product review:', error);
+    return { error: 'Failed to create product review' };
   }
 };
