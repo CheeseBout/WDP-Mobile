@@ -609,6 +609,114 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
   },
+  reviewsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  reviewActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reviewsCount: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+    marginRight: 10,
+  },
+  addReviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1565C0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  addReviewButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  reviewsLoading: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  reviewsList: {
+    marginTop: 10,
+  },
+  reviewItem: {
+    backgroundColor: '#f8f8f8',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 10,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  reviewUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  userAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#1565C0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  userAvatarText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  userDetails: {
+    flex: 1,
+  },
+  reviewUserName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  ratingContainer: {
+    marginLeft: 10,
+  },
+  reviewContent: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 18,
+  },
+  noReviews: {
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+  noReviewsText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+    marginTop: 10,
+  },
+  noReviewsSubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 5,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   bottomBar: {
     position: 'absolute',
     bottom: 0,
@@ -682,41 +790,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  reviewsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  reviewActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  reviewsCount: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-    marginRight: 10,
-  },
-  addReviewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1565C0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-  },
-  addReviewButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  starsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -807,5 +880,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  // ...existing styles...
 })
