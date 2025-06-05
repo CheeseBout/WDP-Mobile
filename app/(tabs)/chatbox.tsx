@@ -1,7 +1,10 @@
+import { ChatHistory, createChatHistory, fetchChatMessages, fetchUserChatHistory, sendMessage as sendMessageAPI } from '@/services/chatbox.service';
 import { fetchAllProductsForAI, Product, searchProductsForAI } from '@/services/product.service';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     KeyboardAvoidingView,
@@ -22,24 +25,172 @@ interface Message {
 }
 
 export default function ChatboxScreen() {
-    const [messages, setMessages] = useState<Message[]>(
-        [
-            {
-                id: '1',
-                text: "Hello! I'm your pharmacy assistant. I can recommend products from our inventory based on your needs. How can I help you today?",
-                isUser: false,
-                timestamp: new Date()
-            }
-        ]
-    );
+    const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
     const [productsLoaded, setProductsLoaded] = useState(false);
+    
+    // Chat history states
+    const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
+    const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [showSidebar, setShowSidebar] = useState(true);
+    const [loadingHistories, setLoadingHistories] = useState(true);
+    const [loadingMessages, setLoadingMessages] = useState(false);
+    const [creatingNewChat, setCreatingNewChat] = useState(false);
 
     useEffect(() => {
+        initializeChat();
         loadProducts();
     }, []);
+
+    const initializeChat = async () => {
+        try {
+            console.log('=== Initializing Chat ===')
+            const userData = await AsyncStorage.getItem('user');
+            console.log('User data from storage:', userData)
+            
+            if (userData) {
+                const user = JSON.parse(userData);
+                console.log('Parsed user object:', user)
+                console.log('Available user properties:', Object.keys(user))
+                
+                // Try different possible user ID fields
+                const userId = user.id || user._id || user.userId
+                console.log('Extracted user ID:', userId)
+                
+                if (userId) {
+                    setCurrentUserId(userId);
+                    await loadChatHistories(userId);
+                } else {
+                    console.log('❌ No valid user ID found in user data')
+                    // Try to check if there's user data under different keys
+                    const authData = await AsyncStorage.getItem('auth')
+                    const sessionData = await AsyncStorage.getItem('session')
+                    console.log('Auth data:', authData)
+                    console.log('Session data:', sessionData)
+                }
+            } else {
+                console.log('❌ No user data found in storage')
+                // Check all storage keys to debug
+                const allKeys = await AsyncStorage.getAllKeys()
+                console.log('All AsyncStorage keys:', allKeys)
+                
+                // Check each key to see what data is stored
+                for (const key of allKeys) {
+                    try {
+                        const value = await AsyncStorage.getItem(key)
+                        console.log(`Storage key "${key}":`, value)
+                    } catch (err) {
+                        console.log(`Error reading key "${key}":`, err)
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error initializing chat:', error);
+        }
+    };
+
+    const loadChatHistories = async (userId: string) => {
+        console.log('=== Loading Chat Histories ===')
+        console.log('Loading histories for user ID:', userId)
+        
+        setLoadingHistories(true);
+        try {
+            const result = await fetchUserChatHistory(userId);
+            console.log('Chat history result:', result)
+            
+            if ('error' in result) {
+                console.error('❌ Error loading chat histories:', result.error);
+                setChatHistories([]);
+            } else {
+                console.log('✅ Chat histories loaded:', result.data.length, 'histories')
+                setChatHistories(result.data);
+                // If no current chat selected and histories exist, select the first one
+                if (!currentChatId && result.data.length > 0) {
+                    console.log('Auto-selecting first chat history')
+                    selectChatHistory(result.data[0]);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error loading chat histories:', error);
+            setChatHistories([]);
+        } finally {
+            setLoadingHistories(false);
+        }
+    };
+
+    const selectChatHistory = async (chatHistory: ChatHistory) => {
+        console.log('=== Selecting Chat History ===')
+        console.log('Selected chat ID:', chatHistory._id)
+        
+        setCurrentChatId(chatHistory._id);
+        setShowSidebar(false);
+        await loadChatMessages(chatHistory._id);
+    };
+
+    const loadChatMessages = async (chatId: string) => {
+        console.log('=== Loading Chat Messages ===')
+        console.log('Loading messages for chat ID:', chatId)
+        
+        setLoadingMessages(true);
+        try {
+            const result = await fetchChatMessages(chatId);
+            console.log('Chat messages result:', result)
+            
+            if ('error' in result) {
+                console.error('❌ Error loading messages:', result.error);
+                setMessages([]);
+            } else {
+                console.log('✅ Messages loaded:', result.data.length, 'messages')
+                const formattedMessages: Message[] = result.data.map(msg => ({
+                    id: msg._id,
+                    text: msg.messageContent,
+                    isUser: msg.sender === 'user',
+                    timestamp: new Date(msg.createdAt)
+                }));
+                setMessages(formattedMessages);
+            }
+        } catch (error) {
+            console.error('❌ Error loading messages:', error);
+            setMessages([]);
+        } finally {
+            setLoadingMessages(false);
+        }
+    };
+
+    const createNewChatHistory = async () => {
+        if (!currentUserId) {
+            console.log('❌ No current user ID available')
+            return;
+        }
+        
+        console.log('=== Creating New Chat History ===')
+        console.log('Creating chat for user ID:', currentUserId)
+        
+        setCreatingNewChat(true);
+        try {
+            const result = await createChatHistory(currentUserId);
+            console.log('Create chat result:', result)
+            
+            if ('error' in result) {
+                console.error('❌ Error creating chat:', result.error)
+                Alert.alert('Error', result.error);
+            } else {
+                console.log('✅ Chat created successfully')
+                // Reload chat histories to include the new one
+                await loadChatHistories(currentUserId);
+                // Select the new chat
+                selectChatHistory(result.data);
+            }
+        } catch (error) {
+            console.error('❌ Error creating new chat:', error);
+            Alert.alert('Error', 'Failed to create new chat');
+        } finally {
+            setCreatingNewChat(false);
+        }
+    };
 
     const loadProducts = async () => {
         try {
@@ -108,7 +259,11 @@ export default function ChatboxScreen() {
     };
 
     const sendMessage = async () => {
-        if (!inputText.trim() || isLoading) return;
+        if (!inputText.trim() || isLoading || !currentChatId) return;
+
+        console.log('=== Sending Message ===')
+        console.log('Current chat ID:', currentChatId)
+        console.log('Message text:', inputText.trim())
 
         const userMessage: Message = {
             id: Date.now().toString(),
@@ -122,46 +277,83 @@ export default function ChatboxScreen() {
         setInputText('');
         setIsLoading(true);
 
-        // Simulate processing time for better UX
-        setTimeout(async () => {
-            let responseText = "";
-            let recommendedProducts: Product[] = [];
-
-            // Check if this is a product recommendation query
-            if (isProductRecommendationQuery(question) && productsLoaded) {
-                console.log('Detected product recommendation query, searching products...');
-                recommendedProducts = await getRelevantProducts(question);
-                
-                if (recommendedProducts.length > 0) {
-                    const productList = formatProductsForResponse(recommendedProducts);
-                    responseText = `Based on your request, I found ${recommendedProducts.length} suitable products:\n\n${productList}\n\nThese products are available in our pharmacy. Please consult with our pharmacist for personalized advice.`;
-                } else {
-                    responseText = "I couldn't find any products matching your request in our current inventory. Please visit our pharmacy counter for alternatives.";
-                }
-            } else {
-                // General pharmacy responses
-                const responses = [
-                    "Thank you for your question. Please consult with our pharmacist for specific medical advice.",
-                    "I understand your concern. Our healthcare professionals can provide personalized recommendations.",
-                    "That's a great question. Our pharmacy team can provide detailed guidance.",
-                    "For medication questions, please speak with our licensed pharmacist.",
-                    "Please visit our pharmacy counter for professional medical consultation."
-                ];
-                responseText = responses[Math.floor(Math.random() * responses.length)];
+        try {
+            // Send message to backend
+            const result = await sendMessageAPI(currentChatId, question);
+            console.log('Send message API result:', result)
+            
+            if ('error' in result) {
+                console.error('❌ Error sending message:', result.error)
+                Alert.alert('Error', result.error);
+                setIsLoading(false);
+                return;
             }
 
-            const aiMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                text: responseText,
-                isUser: false,
-                timestamp: new Date(),
-                products: recommendedProducts.length > 0 ? recommendedProducts : undefined
-            };
+            console.log('✅ Message sent to backend successfully')
 
-            setMessages(prev => [...prev, aiMessage]);
+            // Simulate AI response (replace with actual AI API call)
+            setTimeout(async () => {
+                let responseText = "";
+                let recommendedProducts: Product[] = [];
+
+                if (isProductRecommendationQuery(question) && productsLoaded) {
+                    recommendedProducts = await getRelevantProducts(question);
+                    
+                    if (recommendedProducts.length > 0) {
+                        const productList = formatProductsForResponse(recommendedProducts);
+                        responseText = `Based on your request, I found ${recommendedProducts.length} suitable products:\n\n${productList}\n\nThese products are available in our pharmacy. Please consult with our pharmacist for personalized advice.`;
+                    } else {
+                        responseText = "I couldn't find any products matching your request in our current inventory. Please visit our pharmacy counter for alternatives.";
+                    }
+                } else {
+                    const responses = [
+                        "Thank you for your question. Please consult with our pharmacist for specific medical advice.",
+                        "I understand your concern. Our healthcare professionals can provide personalized recommendations.",
+                        "That's a great question. Our pharmacy team can provide detailed guidance.",
+                        "For medication questions, please speak with our licensed pharmacist.",
+                        "Please visit our pharmacy counter for professional medical consultation."
+                    ];
+                    responseText = responses[Math.floor(Math.random() * responses.length)];
+                }
+
+                const aiMessage: Message = {
+                    id: (Date.now() + 1).toString(),
+                    text: responseText,
+                    isUser: false,
+                    timestamp: new Date(),
+                    products: recommendedProducts.length > 0 ? recommendedProducts : undefined
+                };
+
+                setMessages(prev => [...prev, aiMessage]);
+                setIsLoading(false);
+            }, 1500);
+        } catch (error) {
+            console.error('❌ Error sending message:', error);
             setIsLoading(false);
-        }, 1500);
+        }
     };
+
+    const renderChatHistoryItem = ({ item }: { item: ChatHistory }) => (
+        <TouchableOpacity
+            style={[
+                styles.chatHistoryItem,
+                currentChatId === item._id && styles.chatHistoryItemActive
+            ]}
+            onPress={() => selectChatHistory(item)}
+        >
+            <View style={styles.chatHistoryIcon}>
+                <Ionicons name="chatbubble-outline" size={20} color="#1565C0" />
+            </View>
+            <View style={styles.chatHistoryDetails}>
+                <Text style={styles.chatHistoryTitle}>
+                    Chat {new Date(item.createdAt).toLocaleDateString()}
+                </Text>
+                <Text style={styles.chatHistoryTime}>
+                    {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+            </View>
+        </TouchableOpacity>
+    );
 
     const renderProductCard = ({ item }: { item: Product }) => (
         <TouchableOpacity style={styles.productCard} activeOpacity={0.8}>
@@ -266,11 +458,59 @@ export default function ChatboxScreen() {
         );
     };
 
+    if (showSidebar) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.sidebarHeader}>
+                    <Text style={styles.sidebarTitle}>Chat History</Text>
+                    <TouchableOpacity
+                        style={styles.newChatButton}
+                        onPress={createNewChatHistory}
+                        disabled={creatingNewChat}
+                    >
+                        {creatingNewChat ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                            <Ionicons name="add" size={24} color="#fff" />
+                        )}
+                    </TouchableOpacity>
+                </View>
+
+                {loadingHistories ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color="#1565C0" />
+                        <Text style={styles.loadingText}>Loading chat histories...</Text>
+                    </View>
+                ) : chatHistories.length > 0 ? (
+                    <FlatList
+                        data={chatHistories}
+                        renderItem={renderChatHistoryItem}
+                        keyExtractor={(item) => item._id}
+                        style={styles.chatHistoryList}
+                        showsVerticalScrollIndicator={false}
+                    />
+                ) : (
+                    <View style={styles.emptyState}>
+                        <Ionicons name="chatbubbles-outline" size={60} color="#ccc" />
+                        <Text style={styles.emptyStateTitle}>No Chat History</Text>
+                        <Text style={styles.emptyStateText}>Start a new conversation by tapping the + button</Text>
+                    </View>
+                )}
+            </View>
+        );
+    }
+
     return (
         <View style={styles.container}>
-            {/* Modern Header */}
+            {/* Modified Header with back button */}
             <View style={styles.header}>
                 <View style={styles.headerTop}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => setShowSidebar(true)}
+                    >
+                        <Ionicons name="arrow-back" size={24} color="#fff" />
+                    </TouchableOpacity>
                     <View style={styles.botIndicator}>
                         <View style={styles.botAvatar}>
                             <View style={styles.botIcon}>
@@ -285,8 +525,8 @@ export default function ChatboxScreen() {
                             </Text>
                         </View>
                     </View>
-                    <TouchableOpacity style={styles.headerAction} onPress={clearChatHistory}>
-                        <Ionicons name="trash-outline" size={24} color="#fff" />
+                    <TouchableOpacity style={styles.headerAction} onPress={() => setMessages([])}>
+                        <Ionicons name="refresh-outline" size={24} color="#fff" />
                     </TouchableOpacity>
                 </View>
                 {!productsLoaded && (
@@ -296,88 +536,97 @@ export default function ChatboxScreen() {
                 )}
             </View>
 
-            {/* Chat Messages */}
-            <FlatList
-                data={messages}
-                renderItem={renderMessage}
-                keyExtractor={(item) => item.id}
-                style={styles.messagesList}
-                contentContainerStyle={styles.messagesContent}
-                showsVerticalScrollIndicator={false}
-                inverted={false}
-            />
+            {loadingMessages ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#1565C0" />
+                    <Text style={styles.loadingText}>Loading messages...</Text>
+                </View>
+            ) : (
+                <>
+                    {/* Chat Messages */}
+                    <FlatList
+                        data={messages}
+                        renderItem={renderMessage}
+                        keyExtractor={(item) => item.id}
+                        style={styles.messagesList}
+                        contentContainerStyle={styles.messagesContent}
+                        showsVerticalScrollIndicator={false}
+                        inverted={false}
+                    />
 
-            {/* Typing Indicator */}
-            {isLoading && (
-                <View style={styles.typingContainer}>
-                    <View style={styles.typingBubble}>
-                        <View style={styles.typingDots}>
-                            <View style={[styles.dot, styles.dot1]} />
-                            <View style={[styles.dot, styles.dot2]} />
-                            <View style={[styles.dot, styles.dot3]} />
+                    {/* Typing Indicator */}
+                    {isLoading && (
+                        <View style={styles.typingContainer}>
+                            <View style={styles.typingBubble}>
+                                <View style={styles.typingDots}>
+                                    <View style={[styles.dot, styles.dot1]} />
+                                    <View style={[styles.dot, styles.dot2]} />
+                                    <View style={[styles.dot, styles.dot3]} />
+                                </View>
+                            </View>
+                            <Text style={styles.typingText}>PharmaBot is thinking...</Text>
                         </View>
-                    </View>
-                    <Text style={styles.typingText}>PharmaBot is thinking...</Text>
-                </View>
-            )}
+                    )}
 
-            {/* Quick Actions */}
-            {messages.length <= 1 && (
-                <View style={styles.quickActions}>
-                    <Text style={styles.quickActionsTitle}>Quick suggestions</Text>
-                    <View style={styles.suggestionsGrid}>
-                        {['Skincare for acne', 'Pain relief', 'Vitamins', 'Anti-aging'].map((suggestion, index) => (
-                            <TouchableOpacity
-                                key={index}
-                                style={styles.suggestionChip}
-                                onPress={() => setInputText(suggestion)}
-                            >
-                                <Text style={styles.suggestionText}>{suggestion}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
-            )}
-
-            {/* Modern Input */}
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.inputKeyboard}
-            >
-                <View style={styles.inputContainer}>
-                    <View style={styles.inputWrapper}>
-                        <View style={styles.inputBar}>
-                            <TouchableOpacity style={styles.attachButton}>
-                                <Ionicons name="add" size={24} color="#1565C0" />
-                            </TouchableOpacity>
-                            <TextInput
-                                style={styles.textInput}
-                                value={inputText}
-                                onChangeText={setInputText}
-                                placeholder="Ask about products, health advice..."
-                                placeholderTextColor="#999"
-                                multiline
-                                maxLength={300}
-                                editable={!isLoading}
-                            />
-                            <TouchableOpacity
-                                style={[styles.sendButton, (!inputText.trim() || isLoading) && styles.sendButtonDisabled]}
-                                onPress={sendMessage}
-                                disabled={!inputText.trim() || isLoading}
-                            >
-                                <Ionicons 
-                                    name={inputText.trim() ? "send" : "mic"} 
-                                    size={20} 
-                                    color="#fff" 
-                                />
-                            </TouchableOpacity>
+                    {/* Quick Actions */}
+                    {messages.length === 0 && (
+                        <View style={styles.quickActions}>
+                            <Text style={styles.quickActionsTitle}>Quick suggestions</Text>
+                            <View style={styles.suggestionsGrid}>
+                                {['Skincare for acne', 'Pain relief', 'Vitamins', 'Anti-aging'].map((suggestion, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={styles.suggestionChip}
+                                        onPress={() => setInputText(suggestion)}
+                                    >
+                                        <Text style={styles.suggestionText}>{suggestion}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
                         </View>
-                    </View>
-                    <Text style={styles.disclaimer}>
-                        AI-powered assistance • Always consult healthcare professionals
-                    </Text>
-                </View>
-            </KeyboardAvoidingView>
+                    )}
+
+                    {/* Modern Input */}
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        style={styles.inputKeyboard}
+                    >
+                        <View style={styles.inputContainer}>
+                            <View style={styles.inputWrapper}>
+                                <View style={styles.inputBar}>
+                                    <TouchableOpacity style={styles.attachButton}>
+                                        <Ionicons name="add" size={24} color="#1565C0" />
+                                    </TouchableOpacity>
+                                    <TextInput
+                                        style={styles.textInput}
+                                        value={inputText}
+                                        onChangeText={setInputText}
+                                        placeholder="Ask about products, health advice..."
+                                        placeholderTextColor="#999"
+                                        multiline
+                                        maxLength={300}
+                                        editable={!isLoading && currentChatId !== null}
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.sendButton, (!inputText.trim() || isLoading || !currentChatId) && styles.sendButtonDisabled]}
+                                        onPress={sendMessage}
+                                        disabled={!inputText.trim() || isLoading || !currentChatId}
+                                    >
+                                        <Ionicons 
+                                            name={inputText.trim() ? "send" : "mic"} 
+                                            size={20} 
+                                            color="#fff" 
+                                        />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                            <Text style={styles.disclaimer}>
+                                AI-powered assistance • Always consult healthcare professionals
+                            </Text>
+                        </View>
+                    </KeyboardAvoidingView>
+                </>
+            )}
         </View>
     );
 }
@@ -770,5 +1019,108 @@ const styles = StyleSheet.create({
         color: '#1565C0',
         fontWeight: '600',
         marginRight: 4,
+    },
+    sidebarHeader: {
+        backgroundColor: '#1565C0',
+        paddingTop: 50,
+        paddingHorizontal: 20,
+        paddingBottom: 20,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    sidebarTitle: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    newChatButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    chatHistoryList: {
+        flex: 1,
+        backgroundColor: '#F8FAFE',
+    },
+    chatHistoryItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+        backgroundColor: '#fff',
+    },
+    chatHistoryItemActive: {
+        backgroundColor: '#E3F2FD',
+        borderLeftWidth: 4,
+        borderLeftColor: '#1565C0',
+    },
+    chatHistoryIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#E3F2FD',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    chatHistoryDetails: {
+        flex: 1,
+    },
+    chatHistoryTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 4,
+    },
+    chatHistoryTime: {
+        fontSize: 12,
+        color: '#666',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#F8FAFE',
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 16,
+        color: '#666',
+    },
+    emptyState: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#F8FAFE',
+        paddingHorizontal: 40,
+    },
+    emptyStateTitle: {
+        fontSize: 20,
+        fontWeight: '600',
+        color: '#333',
+        marginTop: 16,
+        marginBottom: 8,
+    },
+    emptyStateText: {
+        fontSize: 14,
+        color: '#666',
+        textAlign: 'center',
+        lineHeight: 20,
+    },
+    backButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
     },
 });
