@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 export interface CartItem {
   productId: string;
@@ -123,23 +124,32 @@ export const addToCart = async (request: AddToCartRequest): Promise<CartResponse
     const headers = await getAuthHeaders();
     console.log('Adding to cart with headers:', headers);
     
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/add-item`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(request),
-    });
+    const response = await axios.post(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/add-item`,
+      request,
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Cart API Error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: CartResponse = await response.json();
-    return data;
-  } catch (error) {
+    console.log('Add to cart response:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error adding to cart:', error);
-    return { success: false, message: 'Failed to add item to cart' };
+    
+    let errorMessage = 'Failed to add item to cart';
+    if (error.response) {
+      console.error('Cart API Error:', error.response.status, error.response.data);
+      errorMessage = `Add to cart failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { success: false, message: errorMessage };
   }
 };
 
@@ -147,20 +157,31 @@ export const removeFromCart = async (productId: string): Promise<CartResponse> =
   try {
     const headers = await getAuthHeaders();
     
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/remove-item/${productId}`, {
-      method: 'DELETE',
-      headers,
-    });
+    const response = await axios.delete(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/remove-item/${productId}`,
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: CartResponse = await response.json();
-    return data;
-  } catch (error) {
+    console.log('Remove from cart response:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error removing from cart:', error);
-    return { success: false, message: 'Failed to remove item from cart' };
+    
+    let errorMessage = 'Failed to remove item from cart';
+    if (error.response) {
+      console.error('Remove cart API Error:', error.response.status, error.response.data);
+      errorMessage = `Remove from cart failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { success: false, message: errorMessage };
   }
 };
 
@@ -168,20 +189,31 @@ export const clearCart = async (): Promise<CartResponse> => {
   try {
     const headers = await getAuthHeaders();
     
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/clear`, {
-      method: 'DELETE',
-      headers,
-    });
+    const response = await axios.delete(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/clear`,
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: CartResponse = await response.json();
-    return data;
-  } catch (error) {
+    console.log('Clear cart response:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error clearing cart:', error);
-    return { success: false, message: 'Failed to clear cart' };
+    
+    let errorMessage = 'Failed to clear cart';
+    if (error.response) {
+      console.error('Clear cart API Error:', error.response.status, error.response.data);
+      errorMessage = `Clear cart failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { success: false, message: errorMessage };
   }
 };
 
@@ -190,22 +222,31 @@ export const getMyCart = async (): Promise<GetCartResponse | { error: string }> 
     const headers = await getAuthHeaders();
     console.log('Getting cart with headers:', headers);
     
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/my-cart`, {
-      method: 'GET',
-      headers,
-    });
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/my-cart`,
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Get Cart API Error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: GetCartResponse = await response.json();
-    return data;
-  } catch (error) {
+    console.log('Get cart response:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error getting cart:', error);
-    return { error: 'Failed to get cart' };
+    
+    let errorMessage = 'Failed to get cart';
+    if (error.response) {
+      console.error('Get Cart API Error:', error.response.status, error.response.data);
+      errorMessage = `Get cart failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { error: errorMessage };
   }
 };
 
@@ -215,34 +256,42 @@ export const checkout = async (request: CheckoutSelectedRequest): Promise<Checko
     console.log('Checking out selected items with headers:', headers);
     console.log('Checkout payload:', JSON.stringify(request, null, 2));
     
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/payments/cart-checkout`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(request),
-    });
+    const response = await axios.post(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/payments/cart-checkout`,
+      request,
+      {
+        headers,
+        timeout: 30000, // Increased timeout for payment processing
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Checkout Selected API Error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('Checkout response:', data);
+    console.log('Checkout response:', response.data);
     
     // Return success with payment data
     return {
       success: true,
       message: 'Checkout successful',
-      paymentUrl: data.paymentUrl,
-      orderReference: data.orderReference,
-      totalAmount: data.totalAmount,
-      currency: data.currency,
-      data: data
+      paymentUrl: response.data.paymentUrl,
+      orderReference: response.data.orderReference,
+      totalAmount: response.data.totalAmount,
+      currency: response.data.currency,
+      data: response.data
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error checking out selected items:', error);
-    return { success: false, message: 'Failed to checkout selected items' };
+    
+    let errorMessage = 'Failed to checkout selected items';
+    if (error.response) {
+      console.error('Checkout Selected API Error:', error.response.status, error.response.data);
+      errorMessage = `Checkout failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { success: false, message: errorMessage };
   }
 };
 
@@ -288,28 +337,35 @@ export const checkoutSelectedItems = async (): Promise<CartResponse> => {
     const headers = await getAuthHeaders();
     console.log('Checking out selected items:', productIds);
     
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/checkout-selected`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ productIds }),
-    });
+    const response = await axios.post(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/checkout-selected`,
+      { productIds },
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Checkout Selected Items API Error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: CartResponse = await response.json();
-    console.log('Checkout selected items response:', data);
-    return data;
-  } catch (error) {
+    console.log('Checkout selected items response:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error checking out selected items:', error);
-    return { success: false, message: 'Failed to checkout selected items' };
+    
+    let errorMessage = 'Failed to checkout selected items';
+    if (error.response) {
+      console.error('Checkout Selected Items API Error:', error.response.status, error.response.data);
+      errorMessage = `Checkout selected failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { success: false, message: errorMessage };
   }
 };
 
-// Verify payment status - updated to handle URL parsing
 export const verifyPayment = async (returnUrl?: string): Promise<VerifyPaymentResponse> => {
   try {
     const headers = await getAuthHeaders();
@@ -340,34 +396,36 @@ export const verifyPayment = async (returnUrl?: string): Promise<VerifyPaymentRe
     
     // Build URL with query parameters
     let url = `${process.env.EXPO_PUBLIC_BASE_API_URL}/payments/verify`;
-    if (Object.keys(queryParams).length > 0) {
-      const searchParams = new URLSearchParams(queryParams);
-      url += `?${searchParams.toString()}`;
-      console.log('Verification URL with params:', url);
-    }
+    const searchParams = new URLSearchParams(queryParams);
     
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await axios.get(url, {
       headers,
+      params: queryParams,
+      timeout: 10000,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Verify Payment API Error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('Payment verification response:', data);
+    console.log('Payment verification response:', response.data);
     
     return {
       success: true,
       message: 'Payment verification successful',
-      data: data
+      data: response.data
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error verifying payment:', error);
-    return { success: false, message: 'Failed to verify payment' };
+    
+    let errorMessage = 'Failed to verify payment';
+    if (error.response) {
+      console.error('Verify Payment API Error:', error.response.status, error.response.data);
+      errorMessage = `Payment verification failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { success: false, message: errorMessage };
   }
 };
 

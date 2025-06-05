@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 export interface OrderItem {
   id: string;
@@ -67,7 +68,10 @@ export interface OrdersResponse {
 
 const getAuthHeaders = async () => {
   try {
+    // Get token from AsyncStorage - use 'authToken' key to match sign-in storage
     const token = await AsyncStorage.getItem('authToken');
+    console.log('Token available for order request:', !!token);
+    
     return {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -83,22 +87,32 @@ const getAuthHeaders = async () => {
 export const getUserOrders = async (): Promise<OrdersResponse | { error: string }> => {
   try {
     const headers = await getAuthHeaders();
+    console.log('Getting user orders with headers:', headers);
     
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/orders/by-user`, {
-      method: 'GET',
-      headers,
-    });
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/orders/user-orders`,
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Get Orders API Error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
+    console.log('Get orders response:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('Error getting user orders:', error);
+    
+    let errorMessage = 'Failed to get user orders';
+    if (error.response) {
+      console.error('Get Orders API Error:', error.response.status, error.response.data);
+      errorMessage = `Get orders failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
     }
-
-    const data: OrdersResponse = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching orders:', error);
-    return { error: 'Failed to fetch orders' };
+    
+    return { error: errorMessage };
   }
 };

@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { getStoredToken } from './auth.service';
 
 export interface Product {
@@ -102,98 +103,128 @@ export interface CreateReviewResponse {
 
 export const fetchProducts = async (params?: ProductsParams): Promise<ProductsResponse | { error: string }> => {
   try {
-    const searchParams = new URLSearchParams();
-    
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          searchParams.append(key, value.toString());
-        }
-      });
-    }
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/products`,
+      {
+        params,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000,
+      }
+    );
 
-    const url = `${process.env.EXPO_PUBLIC_BASE_API_URL}/products${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: ProductsResponse = await response.json();
-    return data;
-  } catch (error) {
+    console.log('Fetch products response:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error fetching products:', error);
-    return { error: 'Failed to fetch products' };
+    
+    let errorMessage = 'Failed to fetch products';
+    if (error.response) {
+      errorMessage = `Fetch products failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { error: errorMessage };
   }
 };
 
 export const fetchProductById = async (id: string): Promise<Product | { error: string }> => {
   try {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/products/${id}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/products/${id}`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data;
-  } catch (error) {
+    console.log('Fetch product by ID response:', response.data);
+    return response.data.data;
+  } catch (error: any) {
     console.error('Error fetching product:', error);
-    return { error: 'Failed to fetch product' };
+    
+    let errorMessage = 'Failed to fetch product';
+    if (error.response) {
+      errorMessage = `Fetch product failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { error: errorMessage };
   }
 };
 
 export const fetchCategories = async (): Promise<CategoriesResponse | { error: string }> => {
   try {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/categories`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/categories`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: CategoriesResponse = await response.json();
-    return data;
-  } catch (error) {
+    console.log('Fetch categories response:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error fetching categories:', error);
-    return { error: 'Failed to fetch categories' };
+    
+    let errorMessage = 'Failed to fetch categories';
+    if (error.response) {
+      errorMessage = `Fetch categories failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { error: errorMessage };
   }
 };
 
 // Add function to get all products for AI recommendations
 export const fetchAllProductsForAI = async (): Promise<Product[] | { error: string }> => {
   try {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/products?limit=100`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/products`,
+      {
+        params: { limit: 100 },
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: ProductsResponse = await response.json();
-    return data.data.products;
-  } catch (error) {
+    console.log('Fetch products for AI response:', response.data);
+    return response.data.data.products;
+  } catch (error: any) {
     console.error('Error fetching products for AI:', error);
-    return { error: 'Failed to fetch products for AI' };
+    
+    let errorMessage = 'Failed to fetch products for AI';
+    if (error.response) {
+      errorMessage = `Fetch products for AI failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { error: errorMessage };
   }
 };
 
@@ -257,22 +288,33 @@ export const searchProductsForAI = (products: Product[], query: string): Product
 
 export const fetchProductReviews = async (productId: string): Promise<ReviewsResponse | { error: string }> => {
   try {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews?productId=${productId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews`,
+      {
+        params: { productId },
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: ReviewsResponse = await response.json();
-    return data;
-  } catch (error) {
+    console.log('Fetch product reviews response:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error fetching product reviews:', error);
-    return { error: 'Failed to fetch product reviews' };
+    
+    let errorMessage = 'Failed to fetch product reviews';
+    if (error.response) {
+      errorMessage = `Fetch reviews failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { error: errorMessage };
   }
 };
 
@@ -284,23 +326,33 @@ export const createProductReview = async (reviewData: CreateReviewRequest): Prom
       return { error: "Authentication token not found. Please login again." };
     }
 
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(reviewData),
-    });
+    const response = await axios.post(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews`,
+      reviewData,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: CreateReviewResponse = await response.json();
-    return data;
-  } catch (error) {
+    console.log('Create product review response:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error creating product review:', error);
-    return { error: 'Failed to create product review' };
+    
+    let errorMessage = 'Failed to create product review';
+    if (error.response) {
+      errorMessage = `Create review failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { error: errorMessage };
   }
 };

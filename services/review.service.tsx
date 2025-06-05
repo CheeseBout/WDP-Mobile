@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 export interface Review {
   _id: string;
@@ -44,8 +45,6 @@ export interface SingleReviewResponse {
 }
 
 export interface ReviewEligibilityResponse {
-  success: boolean;
-  code: number;
   data: {
     canReview: boolean;
     reason?: 'already_reviewed' | 'not_purchased';
@@ -62,7 +61,10 @@ export interface ReviewResponse {
 
 const getAuthHeaders = async () => {
   try {
+    // Get token from AsyncStorage - use 'authToken' key to match sign-in storage
     const token = await AsyncStorage.getItem('authToken');
+    console.log('Token available for review request:', !!token);
+    
     return {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -75,28 +77,58 @@ const getAuthHeaders = async () => {
   }
 };
 
+// Check if user can review a product
+export const checkReviewEligibility = async (productId: string): Promise<ReviewEligibilityResponse | { error: string }> => {
+  try {
+    const headers = await getAuthHeaders();
+    console.log('Checking review eligibility with headers:', headers);
+    
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews/eligibility/${productId}`,
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
+
+    console.log('Review eligibility response:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('Error checking review eligibility:', error);
+    
+    let errorMessage = 'Failed to check review eligibility';
+    if (error.response) {
+      console.error('Review eligibility API Error:', error.response.status, error.response.data);
+      errorMessage = `Check eligibility failed: ${error.response.status}`;
+      if (error.response.data && error.response.data.message) {
+        errorMessage += ` - ${error.response.data.message}`;
+      }
+    } else if (error.request) {
+      errorMessage = 'No response from server';
+    }
+    
+    return { error: errorMessage };
+  }
+};
+
 // Create a new review
 export const createReview = async (request: CreateReviewRequest): Promise<ReviewResponse> => {
   try {
     const headers = await getAuthHeaders();
     console.log('Creating review:', request);
     
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(request),
-    });
+    const response = await axios.post(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews`,
+      request,
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Create Review API Error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: ReviewResponse = await response.json();
-    console.log('Review created successfully:', data);
-    return data;
-  } catch (error) {
+    console.log('Review created successfully:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error creating review:', error);
     return { 
       success: false, 
@@ -162,22 +194,18 @@ export const updateReview = async (reviewId: string, request: UpdateReviewReques
     const headers = await getAuthHeaders();
     console.log('Updating review:', reviewId, request);
     
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews/${reviewId}`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify(request),
-    });
+    const response = await axios.put(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews/${reviewId}`,
+      request,
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Update Review API Error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: ReviewResponse = await response.json();
-    console.log('Review updated successfully:', data);
-    return data;
-  } catch (error) {
+    console.log('Review updated successfully:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error updating review:', error);
     return { 
       success: false, 
@@ -193,53 +221,23 @@ export const deleteReview = async (reviewId: string): Promise<ReviewResponse> =>
     const headers = await getAuthHeaders();
     console.log('Deleting review:', reviewId);
     
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews/${reviewId}`, {
-      method: 'DELETE',
-      headers,
-    });
+    const response = await axios.delete(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews/${reviewId}`,
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Delete Review API Error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: ReviewResponse = await response.json();
-    console.log('Review deleted successfully:', data);
-    return data;
-  } catch (error) {
+    console.log('Review deleted successfully:', response.data);
+    return response.data;
+  } catch (error: any) {
     console.error('Error deleting review:', error);
     return { 
       success: false, 
       code: 500,
       message: 'Failed to delete review' 
     };
-  }
-};
-
-// Check if user can review a product
-export const checkReviewEligibility = async (productId: string): Promise<ReviewEligibilityResponse | { error: string }> => {
-  try {
-    const headers = await getAuthHeaders();
-    console.log('Checking review eligibility for product:', productId);
-    
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews/can-review/${productId}`, {
-      method: 'GET',
-      headers,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Check Review Eligibility API Error:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: ReviewEligibilityResponse = await response.json();
-    console.log('Review eligibility checked:', data);
-    return data;
-  } catch (error) {
-    console.error('Error checking review eligibility:', error);
-    return { error: 'Failed to check review eligibility' };
   }
 };
 
