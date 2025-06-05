@@ -1,9 +1,13 @@
 import { getMyCart } from '@/services/cart.service';
+import { fetchAllProductsForAI, Product, searchProductsForAI } from '@/services/product.service';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+    FlatList,
+    Keyboard,
+    Pressable,
     StyleSheet,
     Text,
     TextInput,
@@ -33,7 +37,58 @@ export const Header: React.FC<HeaderProps> = ({
     notificationCount = 0,
 }) => {
     const router = useRouter();
+    const navigation = useNavigation();
     const [actualCartCount, setActualCartCount] = useState(0);
+
+    // --- Product search state ---
+    const [allProducts, setAllProducts] = useState<Product[]>([]);
+    const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm);
+    const inputRef = useRef<TextInput>(null);
+
+    // Load all products once
+    useEffect(() => {
+        let mounted = true;
+        fetchAllProductsForAI().then(res => {
+            if (mounted && Array.isArray(res)) setAllProducts(res);
+        });
+        return () => { mounted = false; };
+    }, []);
+
+    // Filter products as user types
+    useEffect(() => {
+        if (showSearch && localSearchTerm.trim().length > 0) {
+            const filtered = searchProductsForAI(allProducts, localSearchTerm.trim()).slice(0, 5);
+            setFilteredProducts(filtered);
+            setShowDropdown(filtered.length > 0);
+        } else {
+            setFilteredProducts([]);
+            setShowDropdown(false);
+        }
+    }, [localSearchTerm, allProducts, showSearch]);
+
+    // Handle search input change
+    const handleSearchChange = (text: string) => {
+        setLocalSearchTerm(text);
+        onSearchChange?.(text);
+    };
+
+    // Handle search submit (button or enter)
+    const handleSearchSubmit = () => {
+        Keyboard.dismiss();
+        setShowDropdown(false);
+        // Always navigate to search screen, with or without query
+        router.push({ pathname: '/(tabs)/search', params: localSearchTerm.trim().length > 0 ? { q: localSearchTerm.trim() } : {} });
+        onSearchSubmit?.();
+    };
+
+    // Handle dropdown item press
+    const handleProductPress = (productId: string) => {
+        setShowDropdown(false);
+        Keyboard.dismiss();
+        router.push(`/product/${productId}`);
+    };
 
     const loadCartCount = useCallback(async () => {
         try {
@@ -65,22 +120,47 @@ export const Header: React.FC<HeaderProps> = ({
         <View style={styles.headerContainer}>
             <View style={styles.headerContent}>
                 {showSearch && (
-                    <View style={styles.searchContainer}>
-                        <TouchableOpacity onPress={onSearchSubmit}>
-                            <Ionicons name="search-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.searchIcon} />
-                        </TouchableOpacity>
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder="Search products..."
-                            placeholderTextColor="rgba(255,255,255,0.7)"
-                            value={searchTerm}
-                            onChangeText={onSearchChange}
-                            onSubmitEditing={onSearchSubmit}
-                        />
-                        {searchTerm.length > 0 && (
-                            <TouchableOpacity onPress={() => onSearchChange?.('')} style={styles.clearButton}>
-                                <Ionicons name="close-circle" size={20} color="rgba(255,255,255,0.7)" />
+                    <View style={{ flex: 1 }}>
+                        <View style={styles.searchContainer}>
+                            <TouchableOpacity onPress={handleSearchSubmit}>
+                                <Ionicons name="search-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.searchIcon} />
                             </TouchableOpacity>
+                            <TextInput
+                                ref={inputRef}
+                                style={styles.searchInput}
+                                placeholder="Search products..."
+                                placeholderTextColor="rgba(0, 0, 0, 0.7)"
+                                value={localSearchTerm}
+                                onChangeText={handleSearchChange}
+                                onFocus={() => {
+                                    if (localSearchTerm.trim().length > 0 && filteredProducts.length > 0) setShowDropdown(true);
+                                }}
+                                onSubmitEditing={handleSearchSubmit}
+                                returnKeyType="search"
+                            />
+                            {localSearchTerm.length > 0 && (
+                                <TouchableOpacity onPress={() => handleSearchChange('')} style={styles.clearButton}>
+                                    <Ionicons name="close-circle" size={20} color="rgba(255,255,255,0.7)" />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                        {showDropdown && (
+                            <View style={styles.dropdownContainer}>
+                                <FlatList
+                                    data={filteredProducts}
+                                    keyExtractor={item => item.id}
+                                    renderItem={({ item }) => (
+                                        <Pressable
+                                            style={styles.dropdownItem}
+                                            onPress={() => handleProductPress(item.id)}
+                                        >
+                                            <Text style={styles.dropdownText}>{item.productName}</Text>
+                                            <Text style={styles.dropdownSubText}>{item.brand}</Text>
+                                        </Pressable>
+                                    )}
+                                    keyboardShouldPersistTaps="handled"
+                                />
+                            </View>
                         )}
                     </View>
                 )}
@@ -172,5 +252,35 @@ const styles = StyleSheet.create({
     },
     clearButton: {
         padding: 2,
+    },
+    dropdownContainer: {
+        position: 'absolute',
+        top: 48,
+        left: 0,
+        right: 0,
+        backgroundColor: 'white',
+        borderRadius: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 4,
+        zIndex: 100,
+        maxHeight: 180,
+    },
+    dropdownItem: {
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    dropdownText: {
+        fontSize: 15,
+        color: '#222',
+        fontWeight: '500',
+    },
+    dropdownSubText: {
+        fontSize: 12,
+        color: '#888',
     },
 });

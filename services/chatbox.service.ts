@@ -91,11 +91,6 @@ export const fetchUserChatHistory = async (userId: string): Promise<ChatHistoryR
     return data
   } catch (error) {
     console.error('❌ Error fetching chat history:', error)
-    console.error('Error details:', {
-      name: error?.name,
-      message: error?.message,
-      stack: error?.stack
-    })
     return { error: 'Network error occurred' }
   }
 }
