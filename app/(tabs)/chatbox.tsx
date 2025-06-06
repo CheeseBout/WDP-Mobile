@@ -1,4 +1,4 @@
-import { ChatHistory, createChatHistory, fetchChatMessages, fetchUserChatHistory, sendMessage as sendMessageAPI } from '@/services/chatbox.service';
+import { ChatHistory, createChatHistory, deleteChatHistory, fetchChatMessages, fetchUserChatHistory, getGeminiAIResponse, sendAIMessage, sendMessage as sendMessageAPI } from '@/services/chatbox.service';
 import { fetchAllProductsForAI, Product, searchProductsForAI } from '@/services/product.service';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -261,10 +261,6 @@ export default function ChatboxScreen() {
     const sendMessage = async () => {
         if (!inputText.trim() || isLoading || !currentChatId) return;
 
-        console.log('=== Sending Message ===')
-        console.log('Current chat ID:', currentChatId)
-        console.log('Message text:', inputText.trim())
-
         const userMessage: Message = {
             id: Date.now().toString(),
             text: inputText.trim(),
@@ -280,55 +276,38 @@ export default function ChatboxScreen() {
         try {
             // Send message to backend
             const result = await sendMessageAPI(currentChatId, question);
-            console.log('Send message API result:', result)
-            
             if ('error' in result) {
-                console.error('❌ Error sending message:', result.error)
                 Alert.alert('Error', result.error);
                 setIsLoading(false);
                 return;
             }
 
-            console.log('✅ Message sent to backend successfully')
+            // Call Gemini API for AI response
+            const aiText = await getGeminiAIResponse(question);
 
-            // Simulate AI response (replace with actual AI API call)
-            setTimeout(async () => {
-                let responseText = "";
-                let recommendedProducts: Product[] = [];
-
-                if (isProductRecommendationQuery(question) && productsLoaded) {
-                    recommendedProducts = await getRelevantProducts(question);
-                    
-                    if (recommendedProducts.length > 0) {
-                        const productList = formatProductsForResponse(recommendedProducts);
-                        responseText = `Based on your request, I found ${recommendedProducts.length} suitable products:\n\n${productList}\n\nThese products are available in our pharmacy. Please consult with our pharmacist for personalized advice.`;
-                    } else {
-                        responseText = "I couldn't find any products matching your request in our current inventory. Please visit our pharmacy counter for alternatives.";
-                    }
-                } else {
-                    const responses = [
-                        "Thank you for your question. Please consult with our pharmacist for specific medical advice.",
-                        "I understand your concern. Our healthcare professionals can provide personalized recommendations.",
-                        "That's a great question. Our pharmacy team can provide detailed guidance.",
-                        "For medication questions, please speak with our licensed pharmacist.",
-                        "Please visit our pharmacy counter for professional medical consultation."
-                    ];
-                    responseText = responses[Math.floor(Math.random() * responses.length)];
-                }
-
+            if (aiText) {
+                // Save AI message to backend
+                await sendAIMessage(currentChatId, aiText);
                 const aiMessage: Message = {
                     id: (Date.now() + 1).toString(),
-                    text: responseText,
+                    text: aiText,
                     isUser: false,
-                    timestamp: new Date(),
-                    products: recommendedProducts.length > 0 ? recommendedProducts : undefined
+                    timestamp: new Date()
                 };
-
                 setMessages(prev => [...prev, aiMessage]);
-                setIsLoading(false);
-            }, 1500);
+            } else {
+                // fallback if Gemini fails
+                const fallback = "Sorry, I can't answer this question right now.";
+                await sendAIMessage(currentChatId, fallback);
+                setMessages(prev => [...prev, {
+                    id: (Date.now() + 1).toString(),
+                    text: fallback,
+                    isUser: false,
+                    timestamp: new Date()
+                }]);
+            }
+            setIsLoading(false);
         } catch (error) {
-            console.error('❌ Error sending message:', error);
             setIsLoading(false);
         }
     };
@@ -458,6 +437,37 @@ export default function ChatboxScreen() {
         );
     };
 
+    // Add handleDeleteChat for chat deletion
+    const handleDeleteChat = async () => {
+        if (!currentChatId) return;
+        Alert.alert(
+            "Delete Chat",
+            "Are you sure you want to delete this chat?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            const result = await deleteChatHistory(currentChatId);
+                            if ('error' in result) {
+                                Alert.alert("Error", result.error);
+                            } else {
+                                setChatHistories(prev => prev.filter(c => c._id !== currentChatId));
+                                setMessages([]);
+                                setCurrentChatId(null);
+                                setShowSidebar(true);
+                            }
+                        } catch {
+                            Alert.alert("Error", "Could not delete chat.");
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     if (showSidebar) {
         return (
             <View style={styles.container}>
@@ -502,7 +512,7 @@ export default function ChatboxScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Modified Header with back button */}
+            {/* Modified Header with back and delete button */}
             <View style={styles.header}>
                 <View style={styles.headerTop}>
                     <TouchableOpacity
@@ -525,8 +535,8 @@ export default function ChatboxScreen() {
                             </Text>
                         </View>
                     </View>
-                    <TouchableOpacity style={styles.headerAction} onPress={() => setMessages([])}>
-                        <Ionicons name="refresh-outline" size={24} color="#fff" />
+                    <TouchableOpacity style={styles.headerAction} onPress={handleDeleteChat} disabled={!currentChatId}>
+                        <Ionicons name="trash-outline" size={24} color={currentChatId ? "#fff" : "#A0C4A7"} />
                     </TouchableOpacity>
                 </View>
                 {!productsLoaded && (
