@@ -329,37 +329,61 @@ export const clearSelectedItems = async (): Promise<void> => {
 // Call checkout-selected API with stored product IDs
 export const checkoutSelectedItems = async (): Promise<CartResponse> => {
   try {
+    console.log('=== CHECKOUT-SELECTED API FLOW START ===');
+    
     const productIds = await getSelectedItems();
+    console.log('📦 Retrieved selected product IDs from AsyncStorage:', productIds);
+    console.log('📦 Number of items to remove from cart:', productIds.length);
+    
     if (productIds.length === 0) {
+      console.log('❌ No items selected for checkout - returning early');
       return { success: false, message: 'No items selected for checkout' };
     }
 
     const headers = await getAuthHeaders();
-    console.log('Checking out selected items:', productIds);
+    const apiUrl = `${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/checkout-selected`;
+    const payload = { productIds };
     
-    const response = await axios.post(
-      `${process.env.EXPO_PUBLIC_BASE_API_URL}/cart/checkout-selected`,
-      { productIds },
-      {
-        headers,
-        timeout: 10000,
-      }
-    );
+    console.log('🌐 Making API call to:', apiUrl);
+    console.log('📤 Sending payload:', JSON.stringify(payload, null, 2));
+    console.log('🔑 Using headers:', headers);
+    
+    const response = await axios.post(apiUrl, payload, {
+      headers,
+      timeout: 10000,
+    });
 
-    console.log('Checkout selected items response:', response.data);
+    console.log('✅ Checkout-selected API response received');
+    console.log('📥 Response data:', JSON.stringify(response.data, null, 2));
+    
+    if (response.data?.data?.items) {
+      console.log('🛒 Items remaining in cart after checkout-selected:', response.data.data.items.length);
+      console.log('💰 New cart total amount:', response.data.data.totalAmount);
+    }
+    
+    console.log('=== CHECKOUT-SELECTED API FLOW END ===');
     return response.data;
   } catch (error: any) {
-    console.error('Error checking out selected items:', error);
+    console.log('=== CHECKOUT-SELECTED API ERROR ===');
+    console.error('❌ Error in checkout-selected API:', error);
     
     let errorMessage = 'Failed to checkout selected items';
     if (error.response) {
-      console.error('Checkout Selected Items API Error:', error.response.status, error.response.data);
+      console.error('📛 API Error Details:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        url: error.config?.url
+      });
       errorMessage = `Checkout selected failed: ${error.response.status}`;
       if (error.response.data && error.response.data.message) {
         errorMessage += ` - ${error.response.data.message}`;
       }
     } else if (error.request) {
+      console.error('📛 No response received from server');
       errorMessage = 'No response from server';
+    } else {
+      console.error('📛 Request setup error:', error.message);
     }
     
     return { success: false, message: errorMessage };
@@ -514,48 +538,15 @@ export const processPaymentReturn = async (returnUrl: string): Promise<VerifyPay
   console.log('Processing payment return from WebView:', returnUrl);
   
   try {
-    // Check if this payment has already been processed
-    const paymentCompleted = await AsyncStorage.getItem('paymentCompleted')
-    if (paymentCompleted) {
-      const completed = JSON.parse(paymentCompleted)
-      const timeDiff = Date.now() - completed.timestamp
-      
-      // If payment was completed within last 5 minutes, don't process again
-      if (timeDiff < 5 * 60 * 1000) {
-        console.log('Payment already processed recently, returning cached result')
-        return {
-          success: true,
-          message: 'Payment already processed',
-          data: {
-            isSuccess: true,
-            orderId: completed.orderId,
-            message: 'Payment was already processed successfully'
-          }
-        }
-      }
-    }
-
     // Use the handlePaymentReturn function we already created
     const result = await handlePaymentReturn(returnUrl);
-    
-    // After successful verification, clear selected items
-    if (result.success && result.data?.isSuccess) {
-      console.log('Payment verified successfully, clearing selected items...');
-      await clearSelectedItems();
-      
-      // Clear checkout attempts
-      await AsyncStorage.removeItem('lastCheckoutAttempt')
-      
-      // Store payment completion to prevent duplicate processing
-      await AsyncStorage.setItem('paymentCompleted', JSON.stringify({
-        timestamp: Date.now(),
-        orderId: result.data.orderId,
-        transactionId: result.data.transactionId
-      }))
-      
-      // Don't call checkoutSelectedItems - the order is already created by the backend
-      console.log('Payment processing completed successfully');
-    }
+    console.log('Payment verification completed with result:', {
+      success: result.success,
+      isSuccess: result.data?.isSuccess,
+      orderId: result.data?.orderId,
+      transactionId: result.data?.transactionId,
+      message: result.data?.message || result.message
+    });
     
     return result;
   } catch (error) {

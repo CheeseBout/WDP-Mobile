@@ -90,7 +90,7 @@ export const getUserOrders = async (): Promise<OrdersResponse | { error: string 
     console.log('Getting user orders with headers:', headers);
     
     const response = await axios.get(
-      `${process.env.EXPO_PUBLIC_BASE_API_URL}/orders/user-orders`,
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/orders/by-user`,
       {
         headers,
         timeout: 10000,

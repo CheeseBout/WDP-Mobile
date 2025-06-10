@@ -1,4 +1,4 @@
-import { processPaymentReturn } from '@/services/cart.service'
+import { checkoutSelectedItems, clearSelectedItems, getSelectedItems, processPaymentReturn } from '@/services/cart.service'
 import { Ionicons } from '@expo/vector-icons'
 import { router, useLocalSearchParams } from 'expo-router'
 import React, { useRef, useState } from 'react'
@@ -42,10 +42,38 @@ export default function PaymentScreen() {
       setProcessing(true)
 
       try {
+        console.log('Starting payment verification process...')
+        
         // Call processPaymentReturn with the complete return URL
         const result = await processPaymentReturn(url)
+        console.log('Payment verification result:', result)
         
         if (result.success && result.data?.isSuccess) {
+          console.log('Payment verified successfully, now calling checkout-selected API...')
+          
+          // Get selected items from AsyncStorage
+          const selectedItems = await getSelectedItems()
+          console.log('Retrieved selected items from AsyncStorage:', selectedItems)
+          
+          if (selectedItems && selectedItems.length > 0) {
+            console.log('Calling checkout-selected API to remove selected items from cart...')
+            
+            // Call checkout-selected API to remove only selected items
+            const checkoutResult = await checkoutSelectedItems()
+            console.log('Checkout-selected API result:', checkoutResult)
+            
+            if (checkoutResult.success) {
+              console.log('Selected items successfully removed from cart')
+              // Clear selected items from AsyncStorage after successful removal
+              await clearSelectedItems()
+              console.log('Selected items cleared from AsyncStorage')
+            } else {
+              console.error('Failed to remove selected items from cart:', checkoutResult.message)
+            }
+          } else {
+            console.log('No selected items found in AsyncStorage to remove')
+          }
+
           Alert.alert(
             'Payment Successful!',
             `Order #${result.data.orderId || result.data.transactionId} has been created and is pending staff confirmation.`,
@@ -60,6 +88,7 @@ export default function PaymentScreen() {
             ]
           )
         } else {
+          console.log('Payment verification failed:', result)
           Alert.alert(
             'Payment Failed',
             result.data?.message || result.message || 'Payment verification failed. Please contact support.',
