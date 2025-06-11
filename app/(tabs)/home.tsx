@@ -179,7 +179,7 @@ export default function HomeScreen() {
               router.push(`/(tabs)/${item.id}` as any);
             }}
           >
-            <Text style={styles.viewDetailsButtonText}>View</Text>
+            <Text style={styles.viewDetailsButtonText}>View Details</Text>
           </TouchableOpacity>
         </View>
       </View>

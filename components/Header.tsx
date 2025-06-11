@@ -129,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
                                 ref={inputRef}
                                 style={styles.searchInput}
                                 placeholder="Search products..."
-                                placeholderTextColor="rgba(0, 0, 0, 0.7)"
+                                placeholderTextColor="rgba(255, 255, 255, 0.7)"
                                 value={localSearchTerm}
                                 onChangeText={handleSearchChange}
                                 onFocus={() => {
@@ -247,6 +247,7 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
+        height: 36,
         fontSize: 14,
         color: 'white',
     },

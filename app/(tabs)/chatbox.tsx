@@ -660,7 +660,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingBottom: 16,
+        paddingBottom: 20,
     },
     botIndicator: {
         flexDirection: 'row',
