@@ -16,116 +16,140 @@ export default function PaymentScreen() {
   const [processing, setProcessing] = useState(false)
   const [processedUrls, setProcessedUrls] = useState<Set<string>>(new Set())
   const webViewRef = useRef<WebView>(null)
+  
+  // Use refs for immediate state tracking to prevent race conditions
+  const isProcessingRef = useRef(false)
+  const hasProcessedPaymentRef = useRef(false)
 
   const handleNavigationStateChange = async (navState: any) => {
     const { url } = navState
     console.log('Navigation state changed:', url)
 
-    // Check if this is the return URL from VNPay
-    if (url.includes('payment-result') || url.includes('localhost:4000/payment-result')) {
-      console.log('Payment return URL detected, processing...')
-      
-      // Prevent processing the same URL multiple times
-      if (processedUrls.has(url)) {
-        console.log('URL already processed, ignoring:', url)
-        return
-      }
-      
-      // Add URL to processed set
-      setProcessedUrls(prev => new Set([...prev, url]))
-      
-      if (processing) {
-        console.log('Already processing payment, ignoring duplicate...')
-        return
-      }
+    // Early return if payment has already been processed successfully
+    if (hasProcessedPaymentRef.current) {
+      console.log('Payment already processed successfully, ignoring navigation')
+      return
+    }
 
-      setProcessing(true)
+    // More specific URL pattern check to avoid false positives
+    const isPaymentReturnUrl = url.includes('payment-result') && 
+                              (url.includes('vnp_') || url.includes('ResponseCode') || url.includes('TransactionStatus'))
+    
+    if (!isPaymentReturnUrl) {
+      return
+    }
 
-      try {
-        console.log('Starting payment verification process...')
+    console.log('Payment return URL detected, processing...')
+    
+    // Immediate check and set using ref to prevent race conditions
+    if (isProcessingRef.current) {
+      console.log('Already processing payment (ref check), ignoring duplicate...')
+      return
+    }
+
+    // Check if this exact URL has been processed
+    if (processedUrls.has(url)) {
+      console.log('URL already processed, ignoring:', url)
+      return
+    }
+
+    // Set processing flag immediately
+    isProcessingRef.current = true
+    setProcessing(true)
+    
+    // Add URL to processed set immediately
+    setProcessedUrls(prev => new Set([...prev, url]))
+
+    try {
+      console.log('Starting payment verification process...')
+      
+      // Call processPaymentReturn with the complete return URL
+      const result = await processPaymentReturn(url)
+      console.log('Payment verification result:', result)
+      
+      if (result.success && result.data?.isSuccess) {
+        // Mark payment as successfully processed
+        hasProcessedPaymentRef.current = true
         
-        // Call processPaymentReturn with the complete return URL
-        const result = await processPaymentReturn(url)
-        console.log('Payment verification result:', result)
+        console.log('Payment verified successfully, now calling checkout-selected API...')
         
-        if (result.success && result.data?.isSuccess) {
-          console.log('Payment verified successfully, now calling checkout-selected API...')
+        // Get selected items from AsyncStorage
+        const selectedItems = await getSelectedItems()
+        console.log('Retrieved selected items from AsyncStorage:', selectedItems)
+        
+        if (selectedItems && selectedItems.length > 0) {
+          console.log('Calling checkout-selected API to remove selected items from cart...')
           
-          // Get selected items from AsyncStorage
-          const selectedItems = await getSelectedItems()
-          console.log('Retrieved selected items from AsyncStorage:', selectedItems)
+          // Call checkout-selected API to remove only selected items
+          const checkoutResult = await checkoutSelectedItems()
+          console.log('Checkout-selected API result:', checkoutResult)
           
-          if (selectedItems && selectedItems.length > 0) {
-            console.log('Calling checkout-selected API to remove selected items from cart...')
-            
-            // Call checkout-selected API to remove only selected items
-            const checkoutResult = await checkoutSelectedItems()
-            console.log('Checkout-selected API result:', checkoutResult)
-            
-            if (checkoutResult.success) {
-              console.log('Selected items successfully removed from cart')
-              // Clear selected items from AsyncStorage after successful removal
-              await clearSelectedItems()
-              console.log('Selected items cleared from AsyncStorage')
-            } else {
-              console.error('Failed to remove selected items from cart:', checkoutResult.message)
-            }
+          if (checkoutResult.success) {
+            console.log('Selected items successfully removed from cart')
+            // Clear selected items from AsyncStorage after successful removal
+            await clearSelectedItems()
+            console.log('Selected items cleared from AsyncStorage')
           } else {
-            console.log('No selected items found in AsyncStorage to remove')
+            console.error('Failed to remove selected items from cart:', checkoutResult.message)
           }
-
-          Alert.alert(
-            'Payment Successful!',
-            `Order #${result.data.orderId || result.data.transactionId} has been created and is pending staff confirmation.`,
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  // Navigate back to cart to see updated state
-                  router.replace('/(tabs)/cart')
-                }
-              }
-            ]
-          )
         } else {
-          console.log('Payment verification failed:', result)
-          Alert.alert(
-            'Payment Failed',
-            result.data?.message || result.message || 'Payment verification failed. Please contact support.',
-            [
-              {
-                text: 'Try Again',
-                onPress: () => {
-                  // Clear processed URLs to allow retry
-                  setProcessedUrls(new Set())
-                  if (webViewRef.current && paymentUrl) {
-                    webViewRef.current.reload()
-                  }
-                }
-              },
-              {
-                text: 'Cancel',
-                style: 'cancel',
-                onPress: () => router.back()
-              }
-            ]
-          )
+          console.log('No selected items found in AsyncStorage to remove')
         }
-      } catch (error) {
-        console.error('Payment processing error:', error)
+
         Alert.alert(
-          'Error',
-          'Failed to process payment. Please contact support.',
+          'Payment Successful!',
+          `Order #${result.data.orderId || result.data.transactionId} has been created and is pending staff confirmation.`,
           [
             {
               text: 'OK',
+              onPress: () => {
+                // Navigate back to cart to see updated state
+                router.replace('/(tabs)/cart')
+              }
+            }
+          ]
+        )
+      } else {
+        console.log('Payment verification failed:', result)
+        Alert.alert(
+          'Payment Failed',
+          result.data?.message || result.message || 'Payment verification failed. Please contact support.',
+          [
+            {
+              text: 'Try Again',
+              onPress: () => {
+                // Reset all processing flags for retry
+                isProcessingRef.current = false
+                hasProcessedPaymentRef.current = false
+                setProcessedUrls(new Set())
+                if (webViewRef.current && paymentUrl) {
+                  webViewRef.current.reload()
+                }
+              }
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel',
               onPress: () => router.back()
             }
           ]
         )
-      } finally {
-        setProcessing(false)
       }
+    } catch (error) {
+      console.error('Payment processing error:', error)
+      Alert.alert(
+        'Error',
+        'Failed to process payment. Please contact support.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.back()
+          }
+        ]
+      )
+    } finally {
+      isProcessingRef.current = false
+      setProcessing(false)
     }
   }
 
