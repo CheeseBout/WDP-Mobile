@@ -253,24 +253,36 @@ export const getMyCart = async (): Promise<GetCartResponse | { error: string }> 
 export const checkout = async (request: CheckoutSelectedRequest): Promise<CheckoutSelectedResponse> => {
   try {
     const headers = await getAuthHeaders();
-    console.log('Checking out selected items with headers:', headers);
-    console.log('Checkout payload:', JSON.stringify(request, null, 2));
+    console.log('Creating payment for selected items with headers:', headers);
+    
+    // Get selected product IDs from AsyncStorage
+    const selectedProductIds = await getSelectedItems();
+    console.log('Selected product IDs:', selectedProductIds);
+    
+    // Build the correct payload structure for the new API
+    const payload = {
+      cartPaymentDto: {
+        cart: request.cart
+      },
+      selectedProductIds: selectedProductIds
+    };
+    
+    console.log('Payment creation payload:', JSON.stringify(payload, null, 2));
     
     const response = await axios.post(
-      `${process.env.EXPO_PUBLIC_BASE_API_URL}/payments/cart-checkout`,
-      request,
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/payments/create-payment-selected`,
+      payload,
       {
         headers,
-        timeout: 30000, // Increased timeout for payment processing
+        timeout: 30000,
       }
     );
 
-    console.log('Checkout response:', response.data);
+    console.log('Payment creation response:', response.data);
     
-    // Return success with payment data
     return {
       success: true,
-      message: 'Checkout successful',
+      message: 'Payment URL created successfully',
       paymentUrl: response.data.paymentUrl,
       orderReference: response.data.orderReference,
       totalAmount: response.data.totalAmount,
@@ -278,12 +290,12 @@ export const checkout = async (request: CheckoutSelectedRequest): Promise<Checko
       data: response.data
     };
   } catch (error: any) {
-    console.error('Error checking out selected items:', error);
+    console.error('Error creating payment for selected items:', error);
     
-    let errorMessage = 'Failed to checkout selected items';
+    let errorMessage = 'Failed to create payment for selected items';
     if (error.response) {
-      console.error('Checkout Selected API Error:', error.response.status, error.response.data);
-      errorMessage = `Checkout failed: ${error.response.status}`;
+      console.error('Payment Creation API Error:', error.response.status, error.response.data);
+      errorMessage = `Payment creation failed: ${error.response.status}`;
       if (error.response.data && error.response.data.message) {
         errorMessage += ` - ${error.response.data.message}`;
       }
@@ -393,16 +405,15 @@ export const checkoutSelectedItems = async (): Promise<CartResponse> => {
 export const verifyPayment = async (returnUrl?: string): Promise<VerifyPaymentResponse> => {
   try {
     const headers = await getAuthHeaders();
-    console.log('Verifying payment with return URL:', returnUrl);
+    console.log('Verifying payment for selected items with return URL:', returnUrl);
     
     let queryParams: Record<string, string> = {};
     
-    // If returnUrl is provided, extract query parameters from it
     if (returnUrl) {
       queryParams = extractQueryParamsFromUrl(returnUrl);
       console.log('Extracted query params for verification:', queryParams);
       
-      // Validate that we have the required VNPay parameters
+      // Validate required VNPay parameters
       if (!queryParams.vnp_TxnRef || !queryParams.vnp_Amount || !queryParams.vnp_ResponseCode) {
         console.error('Missing required VNPay parameters in return URL');
         return { 
@@ -418,15 +429,15 @@ export const verifyPayment = async (returnUrl?: string): Promise<VerifyPaymentRe
       };
     }
     
-    // Build URL with query parameters
-    let url = `${process.env.EXPO_PUBLIC_BASE_API_URL}/payments/verify`;
-    const searchParams = new URLSearchParams(queryParams);
-    
-    const response = await axios.get(url, {
-      headers,
-      params: queryParams,
-      timeout: 10000,
-    });
+    // Use the correct verification endpoint for selected items
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/payments/verify-selected`,
+      {
+        headers,
+        params: queryParams,
+        timeout: 10000,
+      }
+    );
 
     console.log('Payment verification response:', response.data);
     
