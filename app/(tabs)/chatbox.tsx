@@ -2,10 +2,12 @@ import { ChatHistory, createChatHistory, deleteChatHistory, fetchChatMessages, f
 import { fetchAllProductsForAI, Product, searchProductsForAI } from '@/services/product.service';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Animated,
+    Easing,
     FlatList,
     KeyboardAvoidingView,
     Platform,
@@ -39,6 +41,8 @@ export default function ChatboxScreen() {
     const [loadingHistories, setLoadingHistories] = useState(true);
     const [loadingMessages, setLoadingMessages] = useState(false);
     const [creatingNewChat, setCreatingNewChat] = useState(false);
+    const [drawerVisible, setDrawerVisible] = useState(false);
+    const drawerAnim = useRef(new Animated.Value(-320)).current; // Drawer width
 
     useEffect(() => {
         initializeChat();
@@ -282,6 +286,11 @@ export default function ChatboxScreen() {
                 return;
             }
 
+            // Refresh chat histories to update title if changed
+            if (currentUserId) {
+                await loadChatHistories(currentUserId);
+            }
+
             // Call Gemini API for AI response
             const aiText = await getGeminiAIResponse(question);
 
@@ -324,8 +333,8 @@ export default function ChatboxScreen() {
                 <Ionicons name="chatbubble-outline" size={20} color="#1565C0" />
             </View>
             <View style={styles.chatHistoryDetails}>
-                <Text style={styles.chatHistoryTitle}>
-                    Chat {new Date(item.createdAt).toLocaleDateString()}
+                <Text style={styles.chatHistoryTitle} numberOfLines={1}>
+                    {item.title ? item.title : `Chat ${new Date(item.createdAt).toLocaleDateString()}`}
                 </Text>
                 <Text style={styles.chatHistoryTime}>
                     {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -468,6 +477,25 @@ export default function ChatboxScreen() {
         );
     };
 
+    // Drawer open/close handlers
+    const openDrawer = () => {
+        setDrawerVisible(true);
+        Animated.timing(drawerAnim, {
+            toValue: 0,
+            duration: 250,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+        }).start();
+    };
+    const closeDrawer = () => {
+        Animated.timing(drawerAnim, {
+            toValue: -320,
+            duration: 200,
+            easing: Easing.in(Easing.cubic),
+            useNativeDriver: false,
+        }).start(() => setDrawerVisible(false));
+    };
+
     if (showSidebar) {
         return (
             <View style={styles.container}>
@@ -512,14 +540,11 @@ export default function ChatboxScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Modified Header with back and delete button */}
+            {/* Header with drawer button */}
             <View style={styles.header}>
                 <View style={styles.headerTop}>
-                    <TouchableOpacity
-                        style={styles.backButton}
-                        onPress={() => setShowSidebar(true)}
-                    >
-                        <Ionicons name="arrow-back" size={24} color="#fff" />
+                    <TouchableOpacity style={styles.backButton} onPress={openDrawer}>
+                        <Ionicons name="menu" size={24} color="#fff" />
                     </TouchableOpacity>
                     <View style={styles.botIndicator}>
                         <View style={styles.botAvatar}>
@@ -545,6 +570,53 @@ export default function ChatboxScreen() {
                     </View>
                 )}
             </View>
+
+            {/* Drawer Overlay and Drawer */}
+            {drawerVisible && (
+                <>
+                    <TouchableOpacity
+                        style={styles.drawerOverlay}
+                        activeOpacity={1}
+                        onPress={closeDrawer}
+                    />
+                    <Animated.View style={[styles.drawer, { left: drawerAnim }]}> 
+                        <View style={styles.sidebarHeader}>
+                            <Text style={styles.sidebarTitle}>Chat History</Text>
+                            <TouchableOpacity
+                                style={styles.newChatButton}
+                                onPress={createNewChatHistory}
+                                disabled={creatingNewChat}
+                            >
+                                {creatingNewChat ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Ionicons name="add" size={24} color="#fff" />
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                        {loadingHistories ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color="#1565C0" />
+                                <Text style={styles.loadingText}>Loading chat histories...</Text>
+                            </View>
+                        ) : chatHistories.length > 0 ? (
+                            <FlatList
+                                data={chatHistories}
+                                renderItem={renderChatHistoryItem}
+                                keyExtractor={(item) => item._id}
+                                style={styles.chatHistoryList}
+                                showsVerticalScrollIndicator={false}
+                            />
+                        ) : (
+                            <View style={styles.emptyState}>
+                                <Ionicons name="chatbubbles-outline" size={60} color="#ccc" />
+                                <Text style={styles.emptyStateTitle}>No Chat History</Text>
+                                <Text style={styles.emptyStateText}>Start a new conversation by tapping the + button</Text>
+                            </View>
+                        )}
+                    </Animated.View>
+                </>
+            )}
 
             {loadingMessages ? (
                 <View style={styles.loadingContainer}>
@@ -1132,5 +1204,28 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
+    },
+    drawerOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.25)',
+        zIndex: 10,
+    },
+    drawer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: 320,
+        height: '100%',
+        backgroundColor: '#fff',
+        zIndex: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 2, height: 0 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 8,
     },
 });

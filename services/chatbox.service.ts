@@ -7,6 +7,7 @@ export interface ChatHistory {
   messages: any[]
   createdAt: string
   updatedAt: string
+  title?: string
   __v: number
 }
 
