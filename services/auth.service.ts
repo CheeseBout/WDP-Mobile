@@ -63,6 +63,7 @@ export interface UpdateUserRequest {
   fullName?: string;
   phone?: string | null;
   address?: string | null;
+  dob?: string | null;
   role?: string;
 }
 
@@ -312,7 +313,7 @@ export const updateUserProfile = async (
         role: response.data.data.role,
         phone: response.data.data.phone,
         address: response.data.data.address,
-        dob: currentDob, // Preserve existing dob
+        dob: updateData.dob ?? currentDob,
         createdAt: new Date().toISOString(),
         updatedAt: response.data.data.updatedAt,
       };

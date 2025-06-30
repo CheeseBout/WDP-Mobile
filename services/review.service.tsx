@@ -61,10 +61,8 @@ export interface ReviewResponse {
 
 const getAuthHeaders = async () => {
   try {
-    // Get token from AsyncStorage - use 'authToken' key to match sign-in storage
     const token = await AsyncStorage.getItem('authToken');
     console.log('Token available for review request:', !!token);
-    
     return {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -82,7 +80,7 @@ export const checkReviewEligibility = async (productId: string): Promise<ReviewE
   try {
     const headers = await getAuthHeaders();
     console.log('Checking review eligibility with headers:', headers);
-    
+
     const response = await axios.get(
       `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews/eligibility/${productId}`,
       {
@@ -95,7 +93,7 @@ export const checkReviewEligibility = async (productId: string): Promise<ReviewE
     return response.data;
   } catch (error: any) {
     console.error('Error checking review eligibility:', error);
-    
+
     let errorMessage = 'Failed to check review eligibility';
     if (error.response) {
       console.error('Review eligibility API Error:', error.response.status, error.response.data);
@@ -106,7 +104,7 @@ export const checkReviewEligibility = async (productId: string): Promise<ReviewE
     } else if (error.request) {
       errorMessage = 'No response from server';
     }
-    
+
     return { error: errorMessage };
   }
 };
@@ -116,7 +114,7 @@ export const createReview = async (request: CreateReviewRequest): Promise<Review
   try {
     const headers = await getAuthHeaders();
     console.log('Creating review:', request);
-    
+
     const response = await axios.post(
       `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews`,
       request,
@@ -130,10 +128,10 @@ export const createReview = async (request: CreateReviewRequest): Promise<Review
     return response.data;
   } catch (error: any) {
     console.error('Error creating review:', error);
-    return { 
-      success: false, 
+    return {
+      success: false,
       code: 500,
-      message: 'Failed to create review' 
+      message: 'Failed to create review'
     };
   }
 };
@@ -144,47 +142,45 @@ export const getReviews = async (productId?: string, userId?: string): Promise<R
     const searchParams = new URLSearchParams();
     if (productId) searchParams.append('productId', productId);
     if (userId) searchParams.append('userId', userId);
-    
+
     const url = `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+
+    const headers = await getAuthHeaders();
+    const response = await axios.get(url, {
+      headers,
+      timeout: 10000,
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: ReviewsResponse = await response.json();
-    return data;
-  } catch (error) {
+    return response.data;
+  } catch (error: any) {
     console.error('Error fetching reviews:', error);
-    return { error: 'Failed to fetch reviews' };
+    let errorMessage = 'Failed to fetch reviews';
+    if (error.response && error.response.data && error.response.data.message) {
+      errorMessage = error.response.data.message;
+    }
+    return { error: errorMessage };
   }
 };
 
 // Get review by ID
 export const getReviewById = async (reviewId: string): Promise<SingleReviewResponse | { error: string }> => {
   try {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews/${reviewId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: SingleReviewResponse = await response.json();
-    return data;
-  } catch (error) {
+    const headers = await getAuthHeaders();
+    const response = await axios.get(
+      `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews/${reviewId}`,
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
+    return response.data;
+  } catch (error: any) {
     console.error('Error fetching review:', error);
-    return { error: 'Failed to fetch review' };
+    let errorMessage = 'Failed to fetch review';
+    if (error.response && error.response.data && error.response.data.message) {
+      errorMessage = error.response.data.message;
+    }
+    return { error: errorMessage };
   }
 };
 
@@ -193,7 +189,7 @@ export const updateReview = async (reviewId: string, request: UpdateReviewReques
   try {
     const headers = await getAuthHeaders();
     console.log('Updating review:', reviewId, request);
-    
+
     const response = await axios.put(
       `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews/${reviewId}`,
       request,
@@ -207,10 +203,10 @@ export const updateReview = async (reviewId: string, request: UpdateReviewReques
     return response.data;
   } catch (error: any) {
     console.error('Error updating review:', error);
-    return { 
-      success: false, 
+    return {
+      success: false,
       code: 500,
-      message: 'Failed to update review' 
+      message: 'Failed to update review'
     };
   }
 };
@@ -220,7 +216,7 @@ export const deleteReview = async (reviewId: string): Promise<ReviewResponse> =>
   try {
     const headers = await getAuthHeaders();
     console.log('Deleting review:', reviewId);
-    
+
     const response = await axios.delete(
       `${process.env.EXPO_PUBLIC_BASE_API_URL}/reviews/${reviewId}`,
       {
@@ -233,10 +229,10 @@ export const deleteReview = async (reviewId: string): Promise<ReviewResponse> =>
     return response.data;
   } catch (error: any) {
     console.error('Error deleting review:', error);
-    return { 
-      success: false, 
+    return {
+      success: false,
       code: 500,
-      message: 'Failed to delete review' 
+      message: 'Failed to delete review'
     };
   }
 };
@@ -261,13 +257,13 @@ export const calculateAverageRating = (reviews: Review[]): number => {
 // Get rating distribution
 export const getRatingDistribution = (reviews: Review[]): Record<number, number> => {
   const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-  
+
   reviews.forEach(review => {
     if (review.rating >= 1 && review.rating <= 5) {
       distribution[review.rating as keyof typeof distribution]++;
     }
   });
-  
+
   return distribution;
 };
 
@@ -277,7 +273,7 @@ export const formatReviewDate = (dateString: string): string => {
   const now = new Date();
   const diffTime = Math.abs(now.getTime() - date.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays === 1) {
     return 'Yesterday';
   } else if (diffDays < 7) {
@@ -299,15 +295,15 @@ export const validateReviewContent = (content: string): { isValid: boolean; erro
   if (!content || content.trim().length === 0) {
     return { isValid: false, error: 'Review content cannot be empty' };
   }
-  
+
   if (content.trim().length < 10) {
     return { isValid: false, error: 'Review must be at least 10 characters long' };
   }
-  
+
   if (content.length > 1000) {
     return { isValid: false, error: 'Review cannot exceed 1000 characters' };
   }
-  
+
   return { isValid: true };
 };
 
@@ -316,20 +312,20 @@ export const validateRating = (rating: number): { isValid: boolean; error?: stri
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
     return { isValid: false, error: 'Rating must be a whole number between 1 and 5' };
   }
-  
+
   return { isValid: true };
 };
 
 // Add quick review validation for inline input
 export const validateQuickReview = (rating: number, content: string): { isValid: boolean; errors: string[] } => {
   const errors: string[] = [];
-  
+
   // Validate rating
   const ratingValidation = validateRating(rating);
   if (!ratingValidation.isValid) {
     errors.push(ratingValidation.error || 'Invalid rating');
   }
-  
+
   // Validate content with more lenient requirements for inline input
   if (!content || content.trim().length === 0) {
     errors.push('Please share your thoughts about this product');
@@ -338,7 +334,7 @@ export const validateQuickReview = (rating: number, content: string): { isValid:
   } else if (content.length > 1000) {
     errors.push('Review cannot exceed 1000 characters');
   }
-  
+
   return {
     isValid: errors.length === 0,
     errors
@@ -351,4 +347,4 @@ export const formatValidationErrors = (errors: string[]): string => {
     return errors[0];
   }
   return errors.map((error, index) => `${index + 1}. ${error}`).join('\n');
-};
+}

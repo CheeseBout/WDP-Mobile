@@ -70,9 +70,11 @@ export const uploadImageToFirebase = async (
   imageUri: string
 ): Promise<string> => {
   try {
-    // Convert URI to blob
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
+    // Convert URI to blob using axios instead of fetch
+    const response = await axios.get(imageUri, {
+      responseType: "blob",
+    });
+    const blob = response.data;
 
     // Create a unique filename
     const filename = `skin_image_${new Date().getTime()}.jpg`;
@@ -223,4 +225,4 @@ export const getUserAnalysisHistory = async (): Promise<AnalysisHistoryResponse 
     console.error("Error fetching analysis history:", error);
     return null;
   }
-};
+}

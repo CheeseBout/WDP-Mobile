@@ -2,14 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Stack, useRouter } from 'expo-router'
 import React, { useCallback, useEffect, useState } from 'react'
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native'
 import { getStoredToken, updateUserProfile } from '../../services/auth.service'
 
@@ -30,7 +30,7 @@ export default function EditProfileScreen() {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  
+  const [dob, setDob] = useState('')
   // Form state
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
@@ -40,15 +40,16 @@ export default function EditProfileScreen() {
     try {
       setLoading(true)
       const userData = await AsyncStorage.getItem('user')
-      
+
       if (userData) {
         const parsedUser = JSON.parse(userData)
         setUser(parsedUser)
-        
+
         // Initialize form with current data
         setFullName(parsedUser.fullName || '')
         setPhone(parsedUser.phone || '')
         setAddress(parsedUser.address || '')
+        setDob(parsedUser.dob || '')
       }
     } catch (error) {
       console.error('Error loading user data:', error)
@@ -85,6 +86,7 @@ export default function EditProfileScreen() {
         fullName: fullName.trim(),
         phone: phone.trim() || null,
         address: address.trim() || null,
+        dob: dob.trim() || null,
       }
 
       const result = await updateUserProfile(user.id, updateData, token)
@@ -153,6 +155,18 @@ export default function EditProfileScreen() {
             </View>
 
             <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Date of Birth</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor="#8B9DC3"
+                value={dob}
+                onChangeText={setDob}
+                keyboardType="default"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Phone</Text>
               <TextInput
                 style={styles.input}
@@ -176,16 +190,6 @@ export default function EditProfileScreen() {
                 numberOfLines={3}
                 textAlignVertical="top"
               />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Role</Text>
-              <TextInput
-                style={[styles.input, styles.disabledInput]}
-                value={user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : ''}
-                editable={false}
-              />
-              <Text style={styles.helperText}>Role can only be changed by admin</Text>
             </View>
 
             <View style={styles.buttonContainer}>
