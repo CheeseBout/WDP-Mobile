@@ -221,7 +221,6 @@ export default function CartScreen() {
           showSearch={true}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
-          showCartIcon={false}
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#1565C0" />
@@ -237,7 +236,6 @@ export default function CartScreen() {
         showSearch={true}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        showCartIcon={false}
       />
       
       {cartItems.length === 0 ? (

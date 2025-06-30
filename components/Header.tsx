@@ -1,9 +1,8 @@
-import { getMyCart } from '@/services/cart.service';
 import { fetchAllProductsForAI, Product, searchProductsForAI } from '@/services/product.service';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     FlatList,
     Keyboard,
@@ -20,9 +19,7 @@ interface HeaderProps {
     searchTerm?: string;
     onSearchChange?: (text: string) => void;
     onSearchSubmit?: () => void;
-    showCartIcon?: boolean;
     showNotificationIcon?: boolean;
-    cartCount?: number;
     notificationCount?: number;
 }
 
@@ -31,16 +28,12 @@ export const Header: React.FC<HeaderProps> = ({
     searchTerm = '',
     onSearchChange,
     onSearchSubmit,
-    showCartIcon = true,
     showNotificationIcon = true,
-    cartCount,
     notificationCount = 0,
 }) => {
     const router = useRouter();
     const navigation = useNavigation();
-    const [actualCartCount, setActualCartCount] = useState(0);
 
-    // --- Product search state ---
     const [allProducts, setAllProducts] = useState<Product[]>([]);
     const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
     const [showDropdown, setShowDropdown] = useState(false);
@@ -89,32 +82,6 @@ export const Header: React.FC<HeaderProps> = ({
         Keyboard.dismiss();
         router.push(`/product/${productId}`);
     };
-
-    const loadCartCount = useCallback(async () => {
-        try {
-            const result = await getMyCart();
-            if ('error' in result) {
-                setActualCartCount(0);
-            } else {
-                // Calculate total quantity of all items in cart
-                const totalItems = result.data.items.reduce((total, item) => total + item.quantity, 0);
-                setActualCartCount(totalItems);
-            }
-        } catch (error) {
-            console.error('Error loading cart count:', error);
-            setActualCartCount(0);
-        }
-    }, []);
-
-    // Refresh cart count when screen comes into focus
-    useFocusEffect(
-        useCallback(() => {
-            loadCartCount();
-        }, [loadCartCount])
-    );
-
-    // Use provided cartCount if available, otherwise use actual cart count
-    const displayCartCount = cartCount !== undefined ? cartCount : actualCartCount;
 
     return (
         <View style={styles.headerContainer}>
@@ -166,21 +133,6 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
 
                 <View style={styles.headerIcons}>
-                    {showCartIcon && (
-                        <TouchableOpacity
-                            style={styles.iconButton}
-                            activeOpacity={0.8}
-                            onPress={() => router.push('/(tabs)/cart')}
-                        >
-                            <Ionicons name="cart-outline" size={24} color="white" />
-                            {displayCartCount > 0 && (
-                                <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>{displayCartCount > 99 ? '99+' : displayCartCount}</Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    )}
-
                     {showNotificationIcon && (
                         <TouchableOpacity style={styles.iconButton} activeOpacity={0.8}>
                             <Ionicons name="notifications-outline" size={24} color="white" />

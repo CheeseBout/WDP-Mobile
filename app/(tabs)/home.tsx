@@ -205,7 +205,6 @@ export default function HomeScreen() {
         searchTerm={searchTerm}
         onSearchChange={handleSearchChange}
         onSearchSubmit={handleSearch}
-        notificationCount={3}
       />
 
       <View style={styles.categorySection}>
