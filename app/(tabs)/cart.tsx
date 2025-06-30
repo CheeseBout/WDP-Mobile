@@ -1,6 +1,6 @@
 import { Header } from '@/components/Header'
 import { getStoredToken } from '@/services/auth.service'
-import { CartItemWithProduct, checkout, getMyCart, removeFromCart, storeSelectedItems, UserCart } from '@/services/cart.service'
+import { addToCart, CartItemWithProduct, checkout, getMyCart, removeFromCart, storeSelectedItems, UserCart } from '@/services/cart.service'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from '@react-navigation/native'
 import { router } from 'expo-router'
@@ -15,6 +15,7 @@ export default function CartScreen() {
   const [totalAmount, setTotalAmount] = useState(0)
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
   const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [quantityLoading, setQuantityLoading] = useState<string | null>(null) // productId for which quantity is updating
 
   useEffect(() => {
     loadCart()
@@ -108,6 +109,54 @@ export default function CartScreen() {
       .reduce((total, item) => total + (item.price * item.quantity), 0)
   }
 
+  // Add/Remove quantity logic using addToCart and removeFromCart
+  const handleIncreaseQuantity = async (item: CartItemWithProduct) => {
+    setQuantityLoading(item.productId._id)
+    try {
+      // Call addToCart with quantity 1 to increase
+      const result = await addToCart({
+        productId: item.productId._id,
+        quantity: 1,
+      })
+      if (result.success) {
+        loadCart()
+      } else {
+        Alert.alert('Error', result.message || 'Failed to increase quantity')
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to increase quantity')
+    } finally {
+      setQuantityLoading(null)
+    }
+  }
+
+  const handleDecreaseQuantity = async (item: CartItemWithProduct) => {
+    if (item.quantity <= 1) {
+      // Remove item from cart if quantity is 1
+      handleRemoveItem(item.productId._id)
+      return
+    }
+    setQuantityLoading(item.productId._id)
+    try {
+      // Remove one unit by calling removeFromCart and then add back (n-1) units
+      // But since removeFromCart removes all, we need to re-add (quantity-1)
+      await removeFromCart(item.productId._id)
+      const result = await addToCart({
+        productId: item.productId._id,
+        quantity: item.quantity - 1,
+      })
+      if (result.success) {
+        loadCart()
+      } else {
+        Alert.alert('Error', result.message || 'Failed to decrease quantity')
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to decrease quantity')
+    } finally {
+      setQuantityLoading(null)
+    }
+  }
+
   const handleCheckout = async () => {
     if (selectedProductIds.length === 0) {
       Alert.alert('Error', 'Please select at least one item to checkout')
@@ -178,7 +227,8 @@ export default function CartScreen() {
 
   const renderCartItem = ({ item }: { item: CartItemWithProduct }) => {
     const isSelected = selectedProductIds.includes(item.productId._id)
-    
+    const isQtyLoading = quantityLoading === item.productId._id
+
     return (
       <TouchableOpacity 
         style={[styles.cartItem, isSelected && styles.cartItemSelected]}
@@ -200,7 +250,30 @@ export default function CartScreen() {
           <Text style={styles.itemName} numberOfLines={2}>{item.productId.productName}</Text>
           <View style={styles.priceRow}>
             <Text style={styles.itemPrice}>{formatPrice(item.price)}</Text>
-            <Text style={styles.itemQuantity}>Qty: {item.quantity}</Text>
+            {/* Quantity controls */}
+            <View style={styles.quantityControls}>
+              <TouchableOpacity
+                style={[styles.qtyButton, item.quantity <= 1 && styles.qtyButtonDisabled]}
+                onPress={() => handleDecreaseQuantity(item)}
+                disabled={isQtyLoading}
+              >
+                <Ionicons name="remove" size={16} color={item.quantity <= 1 ? "#ccc" : "#1565C0"} />
+              </TouchableOpacity>
+              <View style={styles.qtyValueBox}>
+                {isQtyLoading ? (
+                  <ActivityIndicator size="small" color="#1565C0" />
+                ) : (
+                  <Text style={styles.qtyValue}>{item.quantity}</Text>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.qtyButton}
+                onPress={() => handleIncreaseQuantity(item)}
+                disabled={isQtyLoading}
+              >
+                <Ionicons name="add" size={16} color="#1565C0" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
         
@@ -402,6 +475,36 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#FF4444',
     fontWeight: '600',
+  },
+  // Quantity controls styles
+  quantityControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  qtyButton: {
+    padding: 4,
+    borderRadius: 6,
+    backgroundColor: '#E3ECF7',
+    marginHorizontal: 2,
+  },
+  qtyButtonDisabled: {
+    backgroundColor: '#F0F0F0',
+  },
+  qtyValueBox: {
+    minWidth: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  qtyValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1565C0',
   },
   itemQuantity: {
     fontSize: 12,
