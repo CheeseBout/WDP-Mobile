@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import React, { useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams()
@@ -28,7 +28,7 @@ export default function ProductDetailScreen() {
       if (typeof id === 'string') {
         setLoading(true)
         const result = await fetchProductById(id)
-        
+
         if ('error' in result) {
           setError(result.error)
         } else {
@@ -148,7 +148,7 @@ export default function ProductDetailScreen() {
     try {
       // Check if we have a valid token
       const token = await getStoredToken();
-      
+
       if (!token) {
         Alert.alert('Error', 'Please log in to add items to cart');
         return;
@@ -195,7 +195,7 @@ export default function ProductDetailScreen() {
       }
 
       const result = await createProductReview(reviewData)
-      
+
       if ('error' in result) {
         Alert.alert('Error', result.error)
       } else {
@@ -257,12 +257,16 @@ export default function ProductDetailScreen() {
           <Ionicons name="heart-outline" size={24} color="#333" />
         </TouchableOpacity>
       </View>
-      
+
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Product Image */}
         <View style={styles.imageContainer}>
           <View style={styles.productImage}>
-            <Ionicons name="image-outline" size={60} color="#ccc" />
+            {/* <Ionicons name="image-outline" size={60} color="#ccc" /> */}
+            <Image
+              source={{ uri: product.productImages[0] }}
+              style={{ width: '100%', height: '100%', borderRadius: 15 }}
+              resizeMode="cover" />
           </View>
           {product.salePercentage > 0 && (
             <View style={styles.discountBadge}>
@@ -275,7 +279,7 @@ export default function ProductDetailScreen() {
         <View style={styles.productInfo}>
           <Text style={styles.brand}>{product.brand}</Text>
           <Text style={styles.productName}>{product.productName}</Text>
-          
+
           <View style={styles.priceRow}>
             {product.salePercentage > 0 ? (
               <View style={styles.priceContainer}>
@@ -287,7 +291,7 @@ export default function ProductDetailScreen() {
             ) : (
               <Text style={styles.price}>{formatPrice(product.price)}</Text>
             )}
-            
+
             <View style={styles.stockContainer}>
               <Text style={[styles.stockText, { color: product.stock > 0 ? '#4CAF50' : '#F44336' }]}>
                 {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
@@ -333,7 +337,7 @@ export default function ProductDetailScreen() {
                   <Text style={styles.reviewsCount}>({reviews.length})</Text>
                 )}
                 {currentUserId && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.addReviewButton}
                     onPress={() => setShowReviewModal(true)}
                   >
@@ -343,7 +347,7 @@ export default function ProductDetailScreen() {
                 )}
               </View>
             </View>
-            
+
             {reviewsLoading ? (
               <View style={styles.reviewsLoading}>
                 <ActivityIndicator size="large" color="#1565C0" />
@@ -363,11 +367,11 @@ export default function ProductDetailScreen() {
           </View>
         </View>
       </ScrollView>
-      
+
       {/* Bottom Bar */}
       <View style={styles.bottomBar}>
         <View style={styles.quantityContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.quantityBtn, quantity <= 1 && styles.quantityBtnDisabled]}
             onPress={decreaseQuantity}
             disabled={quantity <= 1}
@@ -375,7 +379,7 @@ export default function ProductDetailScreen() {
             <Ionicons name="remove" size={16} color={quantity <= 1 ? "#ccc" : "#666"} />
           </TouchableOpacity>
           <Text style={styles.quantity}>{quantity}</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.quantityBtn, quantity >= product.stock && styles.quantityBtnDisabled]}
             onPress={increaseQuantity}
             disabled={quantity >= product.stock}
@@ -383,8 +387,8 @@ export default function ProductDetailScreen() {
             <Ionicons name="add" size={16} color={quantity >= product.stock ? "#ccc" : "#666"} />
           </TouchableOpacity>
         </View>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={[styles.addToCartBtn, (product.stock === 0 || addingToCart) && styles.addToCartBtnDisabled]}
           disabled={product.stock === 0 || addingToCart}
           onPress={handleAddToCart}
@@ -410,7 +414,7 @@ export default function ProductDetailScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Write a Review</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowReviewModal(false)}
                 style={styles.closeButton}
               >
@@ -437,14 +441,14 @@ export default function ProductDetailScreen() {
             </View>
 
             <View style={styles.modalActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setShowReviewModal(false)}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[styles.submitButton, submittingReview && styles.submitButtonDisabled]}
                 onPress={submitReview}
                 disabled={submittingReview}

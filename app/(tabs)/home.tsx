@@ -1,18 +1,21 @@
-import { addToCart } from '@/services/cart.service';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { Header } from '../../components/Header';
 import { Category, fetchCategories, fetchProducts, Product } from '../../services/product.service';
+
+const PAGE_SIZE = 20;
 
 export default function HomeScreen() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -21,8 +24,17 @@ export default function HomeScreen() {
   const [searchTerm, setSearchTerm] = useState('');
   const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
-  const router = useRouter()
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
+  const router = useRouter();
+
+  // Load categories on mount
+  useEffect(() => {
+    loadCategories();
+  }, []);
 
   const loadCategories = async () => {
     try {
@@ -37,48 +49,57 @@ export default function HomeScreen() {
     }
   };
 
-  const loadProducts = async (searchQuery: string = appliedSearchTerm) => {
+  const loadProducts = async ({
+    reset = false,
+    nextPage = 1,
+    searchQuery = appliedSearchTerm,
+    categoryId = selectedCategoryId,
+  }: {
+    reset?: boolean;
+    nextPage?: number;
+    searchQuery?: string;
+    categoryId?: string;
+  } = {}) => {
+    if (reset) setLoading(true);
     try {
       const result = await fetchProducts({
-        page: 1,
-        limit: 20,
+        page: nextPage,
+        limit: PAGE_SIZE,
         sortBy: 'createdAt',
         order: 'desc',
         ...(searchQuery && { search: searchQuery }),
-        ...(selectedCategoryId && { category: selectedCategoryId })
+        ...(categoryId && { category: categoryId }),
       });
 
       if ('error' in result) {
         Alert.alert('Error', result.error);
       } else {
-        setProducts(result.data.products);
+        // API response: { data: { products, total }, ... }
+        const fetchedProducts = result.data.products;
+        const fetchedTotal = result.data.total;
+        setTotal(fetchedTotal);
+
+        if (reset || nextPage === 1) {
+          setProducts(fetchedProducts);
+        } else {
+          setProducts(prev => [...prev, ...fetchedProducts]);
+        }
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to load products');
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setIsFetchingMore(false);
     }
   };
 
+  // Initial load and when filters/search change
   useEffect(() => {
-    loadCategories();
-    loadProducts(appliedSearchTerm);
+    setPage(1);
+    loadProducts({ reset: true, nextPage: 1 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategoryId, appliedSearchTerm]);
-
-  const handleAddToCart = async (productId: string) => {
-    try {
-      const result = await addToCart({ productId, quantity: 1 });
-      if (result.success) {
-        Alert.alert('Success', 'Item added to cart');
-        // Remove cart refresh trigger - Header will auto-refresh
-      } else {
-        Alert.alert('Error', result.message);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to add item to cart');
-    }
-  };
 
   const handleSearch = () => {
     setLoading(true);
@@ -87,7 +108,8 @@ export default function HomeScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadProducts(appliedSearchTerm);
+    setPage(1);
+    loadProducts({ reset: true, nextPage: 1 });
   };
 
   const handleCategorySelect = (categoryId: string) => {
@@ -96,7 +118,6 @@ export default function HomeScreen() {
 
   const handleSearchChange = (text: string) => {
     setSearchTerm(text);
-    // Clear applied search when input is cleared
     if (text === '') {
       setAppliedSearchTerm('');
     }
@@ -115,22 +136,27 @@ export default function HomeScreen() {
   };
 
   const getCategoryDisplayName = (category: Category) => {
-    const iconMap: Record<string, string> = {
-      'Face Care': '🧴',
-      'Hair Care': '💇',
-      'Body Care': '🧴',
-      'Makeup': '💄',
-      'Fragrances': '🌸',
-      'Over-the-Counter Medicines': '💊',
-      'Supplements & Vitamins': '🔬',
-      'First Aid & Wound Care': '🩹',
-      'Digestive Health': '🥗',
-      'Allergy & Cold Relief': '🤧'
-    };
-    
-    const icon = iconMap[category.categoryName] || '📦';
-    return `${icon} ${category.categoryName}`;
+    return category.categoryName;
   };
+
+  const getStockColor = (stock: number) => {
+    return stock > 10 ? '#4CAF50' : stock > 0 ? '#FF9800' : '#F44336';
+  };
+
+  const handleEndReached = useCallback(() => {
+    if (isFetchingMore || loading) return;
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+    if (page < totalPages) {
+      setIsFetchingMore(true);
+      const nextPage = page + 1;
+      setPage(nextPage);
+      loadProducts({
+        nextPage,
+        searchQuery: appliedSearchTerm,
+        categoryId: selectedCategoryId,
+      });
+    }
+  }, [isFetchingMore, loading, page, total, appliedSearchTerm, selectedCategoryId]);
 
   const renderProductCard = ({ item }: { item: Product }) => (
     <TouchableOpacity
@@ -139,8 +165,13 @@ export default function HomeScreen() {
       onPress={() => router.push(`/(tabs)/${item.id}` as any)}
     >
       <View style={styles.productImageContainer}>
-        <View style={styles.productImagePlaceholder} />
-        
+        <Image
+          source={{ uri: item.productImages[0] }}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="cover"
+          onError={() => console.error('Failed to load product image')}
+        />
+
         {item.salePercentage > 0 && (
           <View style={styles.saleBadge}>
             <Text style={styles.saleBadgeText}>-{item.salePercentage}%</Text>
@@ -151,7 +182,7 @@ export default function HomeScreen() {
       <View style={styles.productInfo}>
         <Text style={styles.productBrand}>{item.brand}</Text>
         <Text style={styles.productName} numberOfLines={2}>{item.productName}</Text>
-        
+
         <View style={styles.priceContainer}>
           {item.salePercentage > 0 ? (
             <View style={styles.priceRow}>
@@ -169,9 +200,9 @@ export default function HomeScreen() {
           <Text style={[styles.stockText, { color: getStockColor(item.stock) }]}>
             {item.stock > 0 ? 'In Stock' : 'Out of Stock'}
           </Text>
-          
-          <TouchableOpacity 
-            style={[styles.viewDetailsButton, item.stock === 0 && styles.viewDetailsButtonDisabled]} 
+
+          <TouchableOpacity
+            style={[styles.viewDetailsButton, item.stock === 0 && styles.viewDetailsButtonDisabled]}
             activeOpacity={0.8}
             disabled={item.stock === 0}
             onPress={(e) => {
@@ -207,6 +238,7 @@ export default function HomeScreen() {
         onSearchSubmit={handleSearch}
       />
 
+      {/* Category Chips */}
       <View style={styles.categorySection}>
         <ScrollView
           horizontal
@@ -225,7 +257,7 @@ export default function HomeScreen() {
               styles.categoryPillText,
               selectedCategoryId === '' && styles.categoryPillTextActive
             ]}>
-              🏠 All
+              All
             </Text>
           </TouchableOpacity>
 
@@ -259,12 +291,21 @@ export default function HomeScreen() {
           columnWrapperStyle={styles.row}
           contentContainerStyle={styles.productList}
           showsVerticalScrollIndicator={false}
-          refreshing={refreshing}
-          onRefresh={onRefresh}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.2}
+          ListFooterComponent={
+            isFetchingMore && products.length < total ? (
+              <View style={{ paddingVertical: 16 }}>
+                <ActivityIndicator size="small" color="#1565C0" />
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconContainer}>
-                <Text style={styles.emptyIcon}>🔍</Text>
               </View>
               <Text style={styles.emptyTitle}>No products found</Text>
               <Text style={styles.emptyText}>Try adjusting your search or filters</Text>
@@ -272,6 +313,8 @@ export default function HomeScreen() {
                 setSearchTerm('');
                 setAppliedSearchTerm('');
                 setSelectedCategoryId('');
+                setPage(1);
+                loadProducts({ reset: true, nextPage: 1 });
               }}>
                 <Text style={styles.resetButtonText}>Reset Filters</Text>
               </TouchableOpacity>
@@ -282,10 +325,6 @@ export default function HomeScreen() {
     </View>
   );
 }
-
-const getStockColor = (stock: number) => {
-  return stock > 10 ? '#4CAF50' : stock > 0 ? '#FF9800' : '#F44336';
-};
 
 const styles = StyleSheet.create({
   container: {
@@ -506,6 +545,4 @@ const styles = StyleSheet.create({
   resetButtonText: {
     color: 'white',
     fontSize: 14,
-    fontWeight: '600',
-  },
-});
+  }});
