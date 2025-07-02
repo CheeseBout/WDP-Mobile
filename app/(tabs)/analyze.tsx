@@ -14,18 +14,24 @@ import {
   View
 } from "react-native";
 import { AnalysisResult, analyzeImage, getProductById, RecommendedProduct, uploadImageToFirebase } from "../../services/analyze.service";
+import { Product as ProductAPI } from "../../services/product.service";
 
 interface Product {
-  _id: string;
-  name: string;
+  id: string;
+  productName: string;
   price: number;
-  imageUrl: string;
-  description: string;
-  category: string;
+  productImages: string[];
+  productDescription: string;
+  category: string[];
+  brand: string;
+  suitableFor: string;
+  salePercentage: number;
+  expiryDate: string;
+  stock: number;
 }
 
 interface ProductWithDetails extends RecommendedProduct {
-  productDetails?: Product;
+  productDetails?: ProductAPI;
   loading?: boolean;
 }
 
@@ -40,11 +46,8 @@ export default function AnalyzeScreen() {
 
   useEffect(() => {
     (async () => {
-      // Request camera and media library permissions
-      const cameraPermission =
-        await ImagePicker.requestCameraPermissionsAsync();
-      const mediaLibraryPermission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+      const mediaLibraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (
         cameraPermission.status !== "granted" ||
@@ -100,7 +103,6 @@ export default function AnalyzeScreen() {
 
     try {
       const downloadUrl = await uploadImageToFirebase(uri);
-      console.log("File uploaded to Firebase:", downloadUrl);
       setFirebaseUrl(downloadUrl);
     } catch (error) {
       console.error("Error uploading to Firebase:", error);
@@ -115,26 +117,23 @@ export default function AnalyzeScreen() {
       ...product,
       loading: true
     }));
-    
+
     setProductsWithDetails(updatedProducts);
 
     for (let i = 0; i < products.length; i++) {
       try {
         const productDetails = await getProductById(products[i].productId);
-        
-        setProductsWithDetails(prev => 
-          prev.map((item, index) => 
-            index === i 
-              ? { ...item, productDetails: productDetails?.data, loading: false }
+        setProductsWithDetails(prev =>
+          prev.map((item, index) =>
+            index === i
+              ? { ...item, productDetails: productDetails?.data || productDetails, loading: false }
               : item
           )
         );
       } catch (error) {
-        console.error(`Error fetching product ${products[i].productId}:`, error);
-        
-        setProductsWithDetails(prev => 
-          prev.map((item, index) => 
-            index === i 
+        setProductsWithDetails(prev =>
+          prev.map((item, index) =>
+            index === i
               ? { ...item, loading: false }
               : item
           )
@@ -153,15 +152,12 @@ export default function AnalyzeScreen() {
 
     try {
       const result = await analyzeImage(image);
-      console.log("Prediction result:", result);
       setPrediction(result);
 
-      // If analysis was successful and has recommended products, fetch product details
       if (result.analysis && result.analysis.recommendedProducts.length > 0) {
         await fetchProductDetails(result.analysis.recommendedProducts);
       }
     } catch (error) {
-      console.error("Prediction failed:", error);
       Alert.alert("Error", "Skin analysis failed. Please try again.");
       setPrediction({ error: "Analysis failed. Please try again." });
     } finally {
@@ -169,41 +165,82 @@ export default function AnalyzeScreen() {
     }
   };
 
-  const renderProductItem = ({ item }: { item: ProductWithDetails }) => (
-    <TouchableOpacity 
-      style={styles.productCard}
-      onPress={() => {
-        if (item.productDetails) {
-          router.push(`/(tabs)/${item.productId}` as any);
-        }
-      }}
-    >
-      {item.loading ? (
-        <View style={styles.productLoading}>
-          <ActivityIndicator size="small" color="#1565C0" />
-          <Text style={styles.productLoadingText}>Loading...</Text>
-        </View>
-      ) : item.productDetails ? (
-        <>
-          <Image 
-            source={{ uri: item.productDetails.imageUrl }} 
-            style={styles.productImage}
-            resizeMode="cover"
-          />
-          <View style={styles.productInfo}>
-            <Text style={styles.productName}>{item.productDetails.name}</Text>
-            <Text style={styles.productPrice}>${item.productDetails.price}</Text>
-            <Text style={styles.recommendationReason}>{item.reason}</Text>
-            <Text style={styles.productCategory}>{item.productDetails.category}</Text>
+  // Format price as in home.tsx and index.tsx
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'VND',
+      minimumFractionDigits: 0,
+    }).format(price);
+  };
+
+  // Discounted price logic
+  const calculateDiscountedPrice = (price: number, salePercentage: number) => {
+    return price - (price * salePercentage / 100);
+  };
+
+  // Show product image like in home.tsx/index.tsx
+  const renderProductItem = ({ item }: { item: ProductWithDetails }) => {
+    const details = item.productDetails as ProductAPI | undefined;
+    return (
+      <TouchableOpacity
+        style={styles.productCard}
+        onPress={() => {
+          if (details) {
+            router.push(`/(tabs)/${details.id}` as any);
+          }
+        }}
+        activeOpacity={0.9}
+      >
+        {item.loading ? (
+          <View style={styles.productLoading}>
+            <ActivityIndicator size="small" color="#1565C0" />
+            <Text style={styles.productLoadingText}>Loading...</Text>
           </View>
-        </>
-      ) : (
-        <View style={styles.productError}>
-          <Text style={styles.errorText}>Failed to load product</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
+        ) : details ? (
+          <>
+            <View style={styles.productImageContainer}>
+              <Image
+                source={{ uri: details.productImages?.[0] || "" }}
+                style={styles.productImage}
+                resizeMode="cover"
+                onError={() => {}}
+              />
+              {details.salePercentage > 0 && (
+                <View style={styles.saleBadge}>
+                  <Text style={styles.saleBadgeText}>-{details.salePercentage}%</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.productInfo}>
+              <Text style={styles.productName}>{details.productName}</Text>
+              <Text style={styles.productBrand}>{details.brand}</Text>
+              <View style={styles.priceRow}>
+                {details.salePercentage > 0 ? (
+                  <>
+                    <Text style={styles.originalPrice}>{formatPrice(details.price)}</Text>
+                    <Text style={styles.discountedPrice}>
+                      {formatPrice(calculateDiscountedPrice(details.price, details.salePercentage))}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.price}>{formatPrice(details.price)}</Text>
+                )}
+              </View>
+              <Text style={styles.recommendationReason}>{item.reason}</Text>
+              <Text style={styles.productCategory}>
+                {Array.isArray(details.category) ? details.category.join(", ") : details.category}
+              </Text>
+            </View>
+          </>
+        ) : (
+          <View style={styles.productError}>
+            <Text style={styles.errorText}>Failed to load product</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   const resetAnalysis = () => {
     setPrediction(null);
@@ -221,7 +258,7 @@ export default function AnalyzeScreen() {
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollContainer}
         contentContainerStyle={styles.formContainer}
         showsVerticalScrollIndicator={true}
@@ -230,7 +267,12 @@ export default function AnalyzeScreen() {
         <View style={styles.uploadSection}>
           <View style={styles.imageContainer}>
             {image ? (
-              <Image source={{ uri: image }} style={styles.imagePreview} />
+              <Image
+                source={{ uri: image }}
+                style={styles.imagePreview}
+                resizeMode="cover"
+                onError={() => {}}
+              />
             ) : (
               <View style={styles.placeholderContainer}>
                 <Text style={styles.placeholderIcon}>📷</Text>
@@ -282,7 +324,7 @@ export default function AnalyzeScreen() {
               <View style={styles.errorResult}>
                 <Text style={styles.errorTitle}>Analysis Failed</Text>
                 <Text style={styles.errorText}>{prediction.error}</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.retryButton}
                   onPress={resetAnalysis}
                 >
@@ -297,7 +339,7 @@ export default function AnalyzeScreen() {
                   <Text style={styles.analysisDate}>
                     Analyzed on {new Date(prediction.analysis.analysisDate).toLocaleDateString()}
                   </Text>
-                  
+
                   {prediction.analysis.recommendedProducts.length > 0 ? (
                     <Text style={styles.recommendationsCount}>
                       {prediction.analysis.recommendedProducts.length} products recommended
@@ -323,7 +365,7 @@ export default function AnalyzeScreen() {
                   </View>
                 )}
 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.newAnalysisButton}
                   onPress={resetAnalysis}
                 >
@@ -400,6 +442,7 @@ const styles = StyleSheet.create({
   imagePreview: {
     width: '100%',
     height: '100%',
+    borderRadius: 20,
   },
   placeholderContainer: {
     flex: 1,
@@ -605,7 +648,7 @@ const styles = StyleSheet.create({
   productCard: {
     backgroundColor: 'white',
     borderRadius: 12,
-    padding: 15,
+    padding: 10,
     marginBottom: 12,
     shadowColor: '#1565C0',
     shadowOffset: { width: 0, height: 2 },
@@ -615,12 +658,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E3F2FD',
     flexDirection: 'row',
+    alignItems: 'center',
   },
-  productImage: {
+  productImageContainer: {
     width: 70,
     height: 70,
     borderRadius: 8,
     marginRight: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F8FAFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  productImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+  },
+  saleBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: '#FF4444',
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    zIndex: 2,
+  },
+  saleBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   productInfo: {
     flex: 1,
@@ -630,19 +699,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: '#1565C0',
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  productPrice: {
+  productBrand: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '500',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  originalPrice: {
+    fontSize: 11,
+    color: '#999',
+    textDecorationLine: 'line-through',
+    marginRight: 6,
+  },
+  discountedPrice: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FF4444',
+  },
+  price: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#2E7D32',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   recommendationReason: {
     fontSize: 11,
     color: '#666',
     fontStyle: 'italic',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   productCategory: {
     fontSize: 10,

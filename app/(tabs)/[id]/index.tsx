@@ -251,11 +251,9 @@ export default function ProductDetailScreen() {
       {/* Simple Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="caret-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.headerButton}>
-          <Ionicons name="heart-outline" size={24} color="#333" />
-        </TouchableOpacity>
+        
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -484,15 +482,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 15,
-    backgroundColor: '#fff',
+    paddingVertical: 10,
+    backgroundColor: '#1565C0',
   },
   headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: '#1565C0',
     justifyContent: 'center',
     alignItems: 'center',
   },

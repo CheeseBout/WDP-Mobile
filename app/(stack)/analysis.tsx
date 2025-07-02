@@ -2,28 +2,34 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  Image,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { AnalysisHistoryItem, getProductById, getUserAnalysisHistory, RecommendedProduct } from '../../services/analyze.service';
+import { Product as ProductAPI } from '../../services/product.service';
 
 interface Product {
-  _id: string;
-  name: string;
+  id: string;
+  productName: string;
   price: number;
-  imageUrl: string;
-  description: string;
-  category: string;
+  productImages: string[];
+  productDescription: string;
+  category: string[];
+  brand: string;
+  suitableFor: string;
+  salePercentage: number;
+  expiryDate: string;
+  stock: number;
 }
 
 interface ProductWithDetails extends RecommendedProduct {
-  productDetails?: Product;
+  productDetails?: ProductAPI;
   loading?: boolean;
 }
 
@@ -47,7 +53,6 @@ export default function AnalysisScreen() {
     try {
       setLoading(true);
       const response = await getUserAnalysisHistory();
-      
       if (response && response.success) {
         const historyWithProducts = response.data.map(item => ({
           ...item,
@@ -74,28 +79,25 @@ export default function AnalysisScreen() {
   };
 
   const fetchProductsForAnalysis = async (analysisId: string, products: RecommendedProduct[]) => {
-    // Set loading state for this analysis
-    setAnalysisHistory(prev => 
-      prev.map(item => 
-        item._id === analysisId 
+    setAnalysisHistory(prev =>
+      prev.map(item =>
+        item._id === analysisId
           ? { ...item, productsLoading: true, productsWithDetails: products.map(p => ({ ...p, loading: true })) }
           : item
       )
     );
 
-    // Fetch product details
     for (let i = 0; i < products.length; i++) {
       try {
         const productDetails = await getProductById(products[i].productId);
-        
-        setAnalysisHistory(prev => 
+        setAnalysisHistory(prev =>
           prev.map(item => {
             if (item._id === analysisId && item.productsWithDetails) {
               const updatedProducts = [...item.productsWithDetails];
-              updatedProducts[i] = { 
-                ...updatedProducts[i], 
-                productDetails: productDetails?.data, 
-                loading: false 
+              updatedProducts[i] = {
+                ...updatedProducts[i],
+                productDetails: productDetails?.data || productDetails,
+                loading: false
               };
               return { ...item, productsWithDetails: updatedProducts };
             }
@@ -103,9 +105,7 @@ export default function AnalysisScreen() {
           })
         );
       } catch (error) {
-        console.error(`Error fetching product ${products[i].productId}:`, error);
-        
-        setAnalysisHistory(prev => 
+        setAnalysisHistory(prev =>
           prev.map(item => {
             if (item._id === analysisId && item.productsWithDetails) {
               const updatedProducts = [...item.productsWithDetails];
@@ -118,25 +118,21 @@ export default function AnalysisScreen() {
       }
     }
 
-    // Set final loading state
-    setAnalysisHistory(prev => 
-      prev.map(item => 
+    setAnalysisHistory(prev =>
+      prev.map(item =>
         item._id === analysisId ? { ...item, productsLoading: false } : item
       )
     );
   };
 
   const toggleAnalysisExpanded = (analysisId: string) => {
-    setAnalysisHistory(prev => 
+    setAnalysisHistory(prev =>
       prev.map(item => {
         if (item._id === analysisId) {
           const newExpanded = !item.expanded;
-          
-          // If expanding and has products but not loaded yet, fetch them
           if (newExpanded && item.recommendedProducts.length > 0 && !item.productsWithDetails?.length) {
             fetchProductsForAnalysis(analysisId, item.recommendedProducts);
           }
-          
           return { ...item, expanded: newExpanded };
         }
         return item;
@@ -144,64 +140,107 @@ export default function AnalysisScreen() {
     );
   };
 
-  const renderProductItem = ({ item }: { item: ProductWithDetails }) => (
-    <TouchableOpacity 
-      style={styles.productCard}
-      onPress={() => {
-        if (item.productDetails) {
-          router.push(`/(tabs)/${item.productId}` as any);
-        }
-      }}
-    >
-      {item.loading ? (
-        <View style={styles.productLoading}>
-          <ActivityIndicator size="small" color="#1565C0" />
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      ) : item.productDetails ? (
-        <>
-          <Image 
-            source={{ uri: item.productDetails.imageUrl }} 
-            style={styles.productImage}
-            resizeMode="cover"
-          />
-          <View style={styles.productInfo}>
-            <Text style={styles.productName}>{item.productDetails.name}</Text>
-            <Text style={styles.productPrice}>${item.productDetails.price}</Text>
-            <Text style={styles.recommendationReason}>{item.reason}</Text>
-            <Text style={styles.productCategory}>{item.productDetails.category}</Text>
+  // Format price as in analyze.tsx
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'VND',
+      minimumFractionDigits: 0,
+    }).format(price);
+  };
+
+  const calculateDiscountedPrice = (price: number, salePercentage: number) => {
+    return price - (price * salePercentage / 100);
+  };
+
+  const renderProductItem = ({ item }: { item: ProductWithDetails }) => {
+    const details = item.productDetails as ProductAPI | undefined;
+    return (
+      <TouchableOpacity
+        style={styles.productCard}
+        onPress={() => {
+          if (details) {
+            router.push(`/(tabs)/${details.id}` as any);
+          }
+        }}
+        activeOpacity={0.9}
+      >
+        {item.loading ? (
+          <View style={styles.productLoading}>
+            <ActivityIndicator size="small" color="#1565C0" />
+            <Text style={styles.productLoadingText}>Loading...</Text>
           </View>
-        </>
-      ) : (
-        <View style={styles.productError}>
-          <Text style={styles.errorText}>Failed to load product</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
+        ) : details ? (
+          <>
+            <View style={styles.productImageContainer}>
+              <Image
+                source={{ uri: details.productImages?.[0] || "" }}
+                style={styles.productImage}
+                resizeMode="cover"
+                onError={() => {}}
+              />
+              {details.salePercentage > 0 && (
+                <View style={styles.saleBadge}>
+                  <Text style={styles.saleBadgeText}>-{details.salePercentage}%</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.productInfo}>
+              <Text style={styles.productName}>{details.productName}</Text>
+              <Text style={styles.productBrand}>{details.brand}</Text>
+              <View style={styles.priceRow}>
+                {details.salePercentage > 0 ? (
+                  <>
+                    <Text style={styles.originalPrice}>{formatPrice(details.price)}</Text>
+                    <Text style={styles.discountedPrice}>
+                      {formatPrice(calculateDiscountedPrice(details.price, details.salePercentage))}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.price}>{formatPrice(details.price)}</Text>
+                )}
+              </View>
+              <Text style={styles.recommendationReason}>{item.reason}</Text>
+              <Text style={styles.productCategory}>
+                {Array.isArray(details.category) ? details.category.join(", ") : details.category}
+              </Text>
+            </View>
+          </>
+        ) : (
+          <View style={styles.productError}>
+            <Text style={styles.errorText}>Failed to load product</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   const renderAnalysisItem = ({ item }: { item: AnalysisWithProducts }) => (
     <View style={styles.analysisCard}>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.analysisHeader}
         onPress={() => toggleAnalysisExpanded(item._id)}
       >
-        <Image 
-          source={{ uri: item.imageUrl }} 
+        <Image
+          source={{ uri: item.imageUrl }}
           style={styles.analysisImage}
           resizeMode="cover"
         />
         <View style={styles.analysisInfo}>
           <Text style={styles.skinType}>{item.skinType.toUpperCase()}</Text>
           <Text style={styles.analysisDate}>
-            {new Date(item.analysisDate).toLocaleDateString()}
+            {new Date(item.analysisDate).toLocaleDateString('vi-VN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit'
+            })} {new Date(item.analysisDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </Text>
           <Text style={styles.productCount}>
             {item.recommendedProducts.length} products recommended
           </Text>
         </View>
         <Text style={styles.expandIcon}>
-          {item.expanded ? '▼' : '▶'}
+          {item.expanded ? <Ionicons name="caret-down"/> : <Ionicons name="caret-forward"/>}
         </Text>
       </TouchableOpacity>
 
@@ -222,6 +261,7 @@ export default function AnalysisScreen() {
                   renderItem={renderProductItem}
                   scrollEnabled={false}
                   showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.productsList}
                 />
               )}
             </>
@@ -240,7 +280,7 @@ export default function AnalysisScreen() {
       <View style={styles.container}>
         <View style={styles.titleContainer}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1565C0" />
+            <Ionicons name="caret-back" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.title}>Analysis History</Text>
           <View style={styles.placeholder} />
@@ -258,7 +298,7 @@ export default function AnalysisScreen() {
       <View style={styles.content}>
         <View style={styles.titleContainer}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1565C0" />
+            <Ionicons name="caret-back" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.title}>Analysis History</Text>
           <View style={styles.placeholder} />
@@ -282,8 +322,8 @@ export default function AnalysisScreen() {
             <Text style={styles.noDataSubtext}>
               Start analyzing your skin to see your history here
             </Text>
-            <TouchableOpacity 
-              style={styles.analyzeButton} 
+            <TouchableOpacity
+              style={styles.analyzeButton}
               onPress={() => router.push('/(tabs)/analyze')}
             >
               <Text style={styles.analyzeButtonText}>Start Analysis</Text>
@@ -308,9 +348,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingTop: 50, // Add top padding to account for status bar
-    backgroundColor: '#1565C0', // Match header color
+    paddingVertical: 20,
+    backgroundColor: '#1565C0',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
@@ -322,7 +361,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#FFFFFF', // White text for better contrast
+    color: '#FFFFFF',
     flex: 1,
     textAlign: 'center',
   },
@@ -412,20 +451,54 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 20,
   },
+  productsList: {
+    paddingBottom: 10,
+  },
   productCard: {
-    backgroundColor: '#F8FAFE',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-    flexDirection: 'row',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+    shadowColor: '#1565C0',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
     borderWidth: 1,
     borderColor: '#E3F2FD',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  productImage: {
-    width: 60,
-    height: 60,
+  productImageContainer: {
+    width: 70,
+    height: 70,
     borderRadius: 8,
     marginRight: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F8FAFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  productImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+  },
+  saleBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: '#FF4444',
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    zIndex: 2,
+  },
+  saleBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   productInfo: {
     flex: 1,
@@ -435,19 +508,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: '#1565C0',
-    marginBottom: 3,
+    marginBottom: 2,
   },
-  productPrice: {
+  productBrand: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '500',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  originalPrice: {
+    fontSize: 11,
+    color: '#999',
+    textDecorationLine: 'line-through',
+    marginRight: 6,
+  },
+  discountedPrice: {
     fontSize: 14,
     fontWeight: 'bold',
+    color: '#FF4444',
+  },
+  price: {
+    fontSize: 16,
+    fontWeight: 'bold',
     color: '#2E7D32',
-    marginBottom: 3,
+    marginBottom: 2,
   },
   recommendationReason: {
     fontSize: 11,
     color: '#666',
     fontStyle: 'italic',
-    marginBottom: 3,
+    marginBottom: 2,
   },
   productCategory: {
     fontSize: 10,
@@ -455,21 +552,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#E3F2FD',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 8,
     alignSelf: 'flex-start',
   },
   productLoading: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingVertical: 20,
+  },
+  productLoadingText: {
+    marginLeft: 8,
+    color: '#1565C0',
+    fontSize: 12,
   },
   productError: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
+    alignItems: 'center',
+    paddingVertical: 20,
   },
   errorText: {
     color: '#F44336',

@@ -152,8 +152,7 @@ export const Header: React.FC<HeaderProps> = ({
 const styles = StyleSheet.create({
     headerContainer: {
         backgroundColor: '#1565C0',
-        paddingTop: 30,
-        paddingBottom: 15,
+        paddingVertical: 20,
     },
     headerContent: {
         flexDirection: 'row',

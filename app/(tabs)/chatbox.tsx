@@ -337,7 +337,11 @@ export default function ChatboxScreen() {
                     {item.title ? item.title : `Chat ${new Date(item.createdAt).toLocaleDateString()}`}
                 </Text>
                 <Text style={styles.chatHistoryTime}>
-                    {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(item.createdAt).toLocaleDateString('vi-VN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    })} {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
             </View>
         </TouchableOpacity>
@@ -720,7 +724,7 @@ const styles = StyleSheet.create({
     },
     header: {
         backgroundColor: '#1565C0',
-        paddingTop: 50,
+        paddingVertical: 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
@@ -732,7 +736,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingBottom: 20,
     },
     botIndicator: {
         flexDirection: 'row',
