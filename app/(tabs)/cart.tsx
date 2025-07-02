@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from '@react-navigation/native'
 import { router } from 'expo-router'
 import React, { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, FlatList, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
 export default function CartScreen() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -242,7 +242,10 @@ export default function CartScreen() {
         </View>
         
         <View style={styles.productImagePlaceholder}>
-          <Ionicons name="image-outline" size={28} color="#1565C0" />
+          <Image 
+            source={{ uri: item.productId.productImages[0] }}
+            style={styles.cartImage}
+            resizeMode="cover"/>
         </View>
         
         <View style={styles.itemDetails}>
@@ -434,6 +437,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 1,
+  },
+  cartImage: {
+    width: 75,
+    height: 75,
+    borderRadius: 10,
   },
   cartItemSelected: {
     borderColor: '#1565C0',

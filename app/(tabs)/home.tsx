@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
   },
   productsSection: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
   },
   productList: {
     paddingBottom: 20,

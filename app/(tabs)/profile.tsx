@@ -1,18 +1,18 @@
+import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useFocusEffect } from '@react-navigation/native'
+import { useRouter } from 'expo-router'
 import React, { useCallback, useState } from 'react'
 import {
+  ActivityIndicator,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  ActivityIndicator,
-  RefreshControl
+  View
 } from 'react-native'
 import { SignOutButton } from '../../components/SignOutButton'
-import { User } from '../../services/auth.service'
-import { useRouter } from 'expo-router'
 
 interface UserProfile {
   id: string;
@@ -142,14 +142,14 @@ export default function ProfileScreen() {
             <TouchableOpacity style={styles.infoItem} onPress={() => router.push('/(stack)/order')}>
               <Text style={styles.infoLabel}>Orders history</Text>
               <Text style={styles.infoValue}>
-                > 
+                <Ionicons name="caret-forward" size={16} color="#1565C0" />
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.infoItem} onPress={() => router.push('/(stack)/analysis')}>
               <Text style={styles.infoLabel}>Analysis history</Text>
               <Text style={styles.infoValue}>
-                > 
+                <Ionicons name="caret-forward" size={16} color="#1565C0" />
               </Text>
             </TouchableOpacity>
           </View>

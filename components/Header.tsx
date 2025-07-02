@@ -38,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
     const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm);
+    const [isInputFocused, setIsInputFocused] = useState(false);
     const inputRef = useRef<TextInput>(null);
 
     // Load all products once
@@ -54,12 +55,12 @@ export const Header: React.FC<HeaderProps> = ({
         if (showSearch && localSearchTerm.trim().length > 0) {
             const filtered = searchProductsForAI(allProducts, localSearchTerm.trim()).slice(0, 5);
             setFilteredProducts(filtered);
-            setShowDropdown(filtered.length > 0);
+            setShowDropdown(filtered.length > 0 && isInputFocused);
         } else {
             setFilteredProducts([]);
             setShowDropdown(false);
         }
-    }, [localSearchTerm, allProducts, showSearch]);
+    }, [localSearchTerm, allProducts, showSearch, isInputFocused]);
 
     // Handle search input change
     const handleSearchChange = (text: string) => {
@@ -71,6 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
     const handleSearchSubmit = () => {
         Keyboard.dismiss();
         setShowDropdown(false);
+        setIsInputFocused(false);
         // Always navigate to search screen, with or without query
         router.push({ pathname: '/(tabs)/search', params: localSearchTerm.trim().length > 0 ? { q: localSearchTerm.trim() } : {} });
         onSearchSubmit?.();
@@ -79,15 +81,23 @@ export const Header: React.FC<HeaderProps> = ({
     // Handle dropdown item press
     const handleProductPress = (productId: string) => {
         setShowDropdown(false);
+        setIsInputFocused(false);
         Keyboard.dismiss();
         router.push(`/product/${productId}`);
     };
+
+    // Hide dropdown when user taps outside
+    useEffect(() => {
+        if (!isInputFocused) {
+            setShowDropdown(false);
+        }
+    }, [isInputFocused]);
 
     return (
         <View style={styles.headerContainer}>
             <View style={styles.headerContent}>
                 {showSearch && (
-                    <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1, position: 'relative' }}>
                         <View style={styles.searchContainer}>
                             <TouchableOpacity onPress={handleSearchSubmit}>
                                 <Ionicons name="search-outline" size={20} color="rgba(255,255,255,0.7)" style={styles.searchIcon} />
@@ -99,9 +109,8 @@ export const Header: React.FC<HeaderProps> = ({
                                 placeholderTextColor="rgba(255, 255, 255, 0.7)"
                                 value={localSearchTerm}
                                 onChangeText={handleSearchChange}
-                                onFocus={() => {
-                                    if (localSearchTerm.trim().length > 0 && filteredProducts.length > 0) setShowDropdown(true);
-                                }}
+                                onFocus={() => setIsInputFocused(true)}
+                                onBlur={() => setIsInputFocused(false)}
                                 onSubmitEditing={handleSearchSubmit}
                                 returnKeyType="search"
                             />
@@ -112,22 +121,34 @@ export const Header: React.FC<HeaderProps> = ({
                             )}
                         </View>
                         {showDropdown && (
-                            <View style={styles.dropdownContainer}>
-                                <FlatList
-                                    data={filteredProducts}
-                                    keyExtractor={item => item.id}
-                                    renderItem={({ item }) => (
-                                        <Pressable
-                                            style={styles.dropdownItem}
-                                            onPress={() => handleProductPress(item.id)}
-                                        >
-                                            <Text style={styles.dropdownText}>{item.productName}</Text>
-                                            <Text style={styles.dropdownSubText}>{item.brand}</Text>
-                                        </Pressable>
-                                    )}
-                                    keyboardShouldPersistTaps="handled"
+                            <>
+                                {/* Overlay to catch outside taps */}
+                                <TouchableOpacity
+                                    style={styles.dropdownOverlay}
+                                    activeOpacity={1}
+                                    onPress={() => {
+                                        setShowDropdown(false);
+                                        setIsInputFocused(false);
+                                        inputRef.current?.blur();
+                                    }}
                                 />
-                            </View>
+                                <View style={styles.dropdownContainer}>
+                                    <FlatList
+                                        data={filteredProducts}
+                                        keyExtractor={item => item.id}
+                                        renderItem={({ item }) => (
+                                            <Pressable
+                                                style={styles.dropdownItem}
+                                                onPress={() => handleProductPress(item.id)}
+                                            >
+                                                <Text style={styles.dropdownText}>{item.productName}</Text>
+                                                <Text style={styles.dropdownSubText}>{item.brand}</Text>
+                                            </Pressable>
+                                        )}
+                                        keyboardShouldPersistTaps="handled"
+                                    />
+                                </View>
+                            </>
                         )}
                     </View>
                 )}
@@ -219,6 +240,15 @@ const styles = StyleSheet.create({
         elevation: 4,
         zIndex: 100,
         maxHeight: 180,
+    },
+    dropdownOverlay: {
+        position: 'absolute',
+        top: 48,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'transparent',
+        zIndex: 99,
     },
     dropdownItem: {
         paddingVertical: 10,

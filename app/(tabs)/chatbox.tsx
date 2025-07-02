@@ -543,177 +543,178 @@ export default function ChatboxScreen() {
     }
 
     return (
-        <View style={styles.container}>
-            {/* Header with drawer button */}
-            <View style={styles.header}>
-                <View style={styles.headerTop}>
-                    <TouchableOpacity style={styles.backButton} onPress={openDrawer}>
-                        <Ionicons name="menu" size={24} color="#fff" />
-                    </TouchableOpacity>
-                    <View style={styles.botIndicator}>
-                        <View style={styles.botAvatar}>
-                            <View style={styles.botIcon}>
-                                <Ionicons name="medical" size={20} color="#fff" />
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0} // adjust if you have a header
+        >
+            <View style={styles.container}>
+                {/* Header with drawer button */}
+                <View style={styles.header}>
+                    <View style={styles.headerTop}>
+                        <TouchableOpacity style={styles.backButton} onPress={openDrawer}>
+                            <Ionicons name="menu" size={24} color="#fff" />
+                        </TouchableOpacity>
+                        <View style={styles.botIndicator}>
+                            <View style={styles.botAvatar}>
+                                <View style={styles.botIcon}>
+                                    <Ionicons name="medical" size={20} color="#fff" />
+                                </View>
+                                <View style={styles.onlineIndicator} />
                             </View>
-                            <View style={styles.onlineIndicator} />
+                            <View style={styles.botInfo}>
+                                <Text style={styles.botName}>PharmaBot</Text>
+                                <Text style={styles.botStatus}>
+                                    {productsLoaded ? 'Online • Ready to help' : 'Loading inventory...'}
+                                </Text>
+                            </View>
                         </View>
-                        <View style={styles.botInfo}>
-                            <Text style={styles.botName}>PharmaBot</Text>
-                            <Text style={styles.botStatus}>
-                                {productsLoaded ? 'Online • Ready to help' : 'Loading inventory...'}
-                            </Text>
-                        </View>
+                        <TouchableOpacity style={styles.headerAction} onPress={handleDeleteChat} disabled={!currentChatId}>
+                            <Ionicons name="trash-outline" size={24} color={currentChatId ? "#fff" : "#A0C4A7"} />
+                        </TouchableOpacity>
                     </View>
-                    <TouchableOpacity style={styles.headerAction} onPress={handleDeleteChat} disabled={!currentChatId}>
-                        <Ionicons name="trash-outline" size={24} color={currentChatId ? "#fff" : "#A0C4A7"} />
-                    </TouchableOpacity>
+                    {!productsLoaded && (
+                        <View style={styles.loadingBar}>
+                            <View style={styles.loadingProgress} />
+                        </View>
+                    )}
                 </View>
-                {!productsLoaded && (
-                    <View style={styles.loadingBar}>
-                        <View style={styles.loadingProgress} />
-                    </View>
-                )}
-            </View>
 
-            {/* Drawer Overlay and Drawer */}
-            {drawerVisible && (
-                <>
-                    <TouchableOpacity
-                        style={styles.drawerOverlay}
-                        activeOpacity={1}
-                        onPress={closeDrawer}
-                    />
-                    <Animated.View style={[styles.drawer, { left: drawerAnim }]}> 
-                        <View style={styles.sidebarHeader}>
-                            <Text style={styles.sidebarTitle}>Chat History</Text>
-                            <TouchableOpacity
-                                style={styles.newChatButton}
-                                onPress={createNewChatHistory}
-                                disabled={creatingNewChat}
-                            >
-                                {creatingNewChat ? (
-                                    <ActivityIndicator size="small" color="#fff" />
-                                ) : (
-                                    <Ionicons name="add" size={24} color="#fff" />
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                        {loadingHistories ? (
-                            <View style={styles.loadingContainer}>
-                                <ActivityIndicator size="large" color="#1565C0" />
-                                <Text style={styles.loadingText}>Loading chat histories...</Text>
+                {/* Drawer Overlay and Drawer */}
+                {drawerVisible && (
+                    <>
+                        <TouchableOpacity
+                            style={styles.drawerOverlay}
+                            activeOpacity={1}
+                            onPress={closeDrawer}
+                        />
+                        <Animated.View style={[styles.drawer, { left: drawerAnim }]}> 
+                            <View style={styles.sidebarHeader}>
+                                <Text style={styles.sidebarTitle}>Chat History</Text>
+                                <TouchableOpacity
+                                    style={styles.newChatButton}
+                                    onPress={createNewChatHistory}
+                                    disabled={creatingNewChat}
+                                >
+                                    {creatingNewChat ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Ionicons name="add" size={24} color="#fff" />
+                                    )}
+                                </TouchableOpacity>
                             </View>
-                        ) : chatHistories.length > 0 ? (
-                            <FlatList
-                                data={chatHistories}
-                                renderItem={renderChatHistoryItem}
-                                keyExtractor={(item) => item._id}
-                                style={styles.chatHistoryList}
-                                showsVerticalScrollIndicator={false}
-                            />
-                        ) : (
-                            <View style={styles.emptyState}>
-                                <Ionicons name="chatbubbles-outline" size={60} color="#ccc" />
-                                <Text style={styles.emptyStateTitle}>No Chat History</Text>
-                                <Text style={styles.emptyStateText}>Start a new conversation by tapping the + button</Text>
+                            {loadingHistories ? (
+                                <View style={styles.loadingContainer}>
+                                    <ActivityIndicator size="large" color="#1565C0" />
+                                    <Text style={styles.loadingText}>Loading chat histories...</Text>
+                                </View>
+                            ) : chatHistories.length > 0 ? (
+                                <FlatList
+                                    data={chatHistories}
+                                    renderItem={renderChatHistoryItem}
+                                    keyExtractor={(item) => item._id}
+                                    style={styles.chatHistoryList}
+                                    showsVerticalScrollIndicator={false}
+                                />
+                            ) : (
+                                <View style={styles.emptyState}>
+                                    <Ionicons name="chatbubbles-outline" size={60} color="#ccc" />
+                                    <Text style={styles.emptyStateTitle}>No Chat History</Text>
+                                    <Text style={styles.emptyStateText}>Start a new conversation by tapping the + button</Text>
+                                </View>
+                            )}
+                        </Animated.View>
+                    </>
+                )}
+
+                {loadingMessages ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color="#1565C0" />
+                        <Text style={styles.loadingText}>Loading messages...</Text>
+                    </View>
+                ) : (
+                    <>
+                        {/* Chat Messages */}
+                        <FlatList
+                            data={messages}
+                            renderItem={renderMessage}
+                            keyExtractor={(item) => item.id}
+                            style={styles.messagesList}
+                            contentContainerStyle={styles.messagesContent}
+                            showsVerticalScrollIndicator={false}
+                            inverted={false}
+                        />
+
+                        {/* Typing Indicator */}
+                        {isLoading && (
+                            <View style={styles.typingContainer}>
+                                <View style={styles.typingBubble}>
+                                    <View style={styles.typingDots}>
+                                        <View style={[styles.dot, styles.dot1]} />
+                                        <View style={[styles.dot, styles.dot2]} />
+                                        <View style={[styles.dot, styles.dot3]} />
+                                    </View>
+                                </View>
+                                <Text style={styles.typingText}>PharmaBot is thinking...</Text>
                             </View>
                         )}
-                    </Animated.View>
-                </>
-            )}
 
-            {loadingMessages ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#1565C0" />
-                    <Text style={styles.loadingText}>Loading messages...</Text>
+                        {/* Quick Actions */}
+                        {messages.length === 0 && (
+                            <View style={styles.quickActions}>
+                                <Text style={styles.quickActionsTitle}>Quick suggestions</Text>
+                                <View style={styles.suggestionsGrid}>
+                                    {['Skincare for acne', 'Pain relief', 'Vitamins', 'Anti-aging'].map((suggestion, index) => (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={styles.suggestionChip}
+                                            onPress={() => setInputText(suggestion)}
+                                        >
+                                            <Text style={styles.suggestionText}>{suggestion}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
+                    </>
+                )}
+
+                {/* Input Bar */}
+                <View style={styles.inputContainer}>
+                    <View style={styles.inputWrapper}>
+                        <View style={styles.inputBar}>
+                            <TouchableOpacity style={styles.attachButton}>
+                                <Ionicons name="add" size={24} color="#1565C0" />
+                            </TouchableOpacity>
+                            <TextInput
+                                style={styles.textInput}
+                                value={inputText}
+                                onChangeText={setInputText}
+                                placeholder="Ask about products, health advice..."
+                                placeholderTextColor="#999"
+                                multiline
+                                maxLength={300}
+                                editable={!isLoading && currentChatId !== null}
+                            />
+                            <TouchableOpacity
+                                style={[styles.sendButton, (!inputText.trim() || isLoading || !currentChatId) && styles.sendButtonDisabled]}
+                                onPress={sendMessage}
+                                disabled={!inputText.trim() || isLoading || !currentChatId}
+                            >
+                                <Ionicons 
+                                    name={inputText.trim() ? "send" : "send"} 
+                                    size={20} 
+                                    color="#fff" 
+                                />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                    <Text style={styles.disclaimer}>
+                        AI-powered assistance • Always consult healthcare professionals
+                    </Text>
                 </View>
-            ) : (
-                <>
-                    {/* Chat Messages */}
-                    <FlatList
-                        data={messages}
-                        renderItem={renderMessage}
-                        keyExtractor={(item) => item.id}
-                        style={styles.messagesList}
-                        contentContainerStyle={styles.messagesContent}
-                        showsVerticalScrollIndicator={false}
-                        inverted={false}
-                    />
-
-                    {/* Typing Indicator */}
-                    {isLoading && (
-                        <View style={styles.typingContainer}>
-                            <View style={styles.typingBubble}>
-                                <View style={styles.typingDots}>
-                                    <View style={[styles.dot, styles.dot1]} />
-                                    <View style={[styles.dot, styles.dot2]} />
-                                    <View style={[styles.dot, styles.dot3]} />
-                                </View>
-                            </View>
-                            <Text style={styles.typingText}>PharmaBot is thinking...</Text>
-                        </View>
-                    )}
-
-                    {/* Quick Actions */}
-                    {messages.length === 0 && (
-                        <View style={styles.quickActions}>
-                            <Text style={styles.quickActionsTitle}>Quick suggestions</Text>
-                            <View style={styles.suggestionsGrid}>
-                                {['Skincare for acne', 'Pain relief', 'Vitamins', 'Anti-aging'].map((suggestion, index) => (
-                                    <TouchableOpacity
-                                        key={index}
-                                        style={styles.suggestionChip}
-                                        onPress={() => setInputText(suggestion)}
-                                    >
-                                        <Text style={styles.suggestionText}>{suggestion}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-                    )}
-
-                    {/* Modern Input */}
-                    <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                        style={styles.inputKeyboard}
-                    >
-                        <View style={styles.inputContainer}>
-                            <View style={styles.inputWrapper}>
-                                <View style={styles.inputBar}>
-                                    <TouchableOpacity style={styles.attachButton}>
-                                        <Ionicons name="add" size={24} color="#1565C0" />
-                                    </TouchableOpacity>
-                                    <TextInput
-                                        style={styles.textInput}
-                                        value={inputText}
-                                        onChangeText={setInputText}
-                                        placeholder="Ask about products, health advice..."
-                                        placeholderTextColor="#999"
-                                        multiline
-                                        maxLength={300}
-                                        editable={!isLoading && currentChatId !== null}
-                                    />
-                                    <TouchableOpacity
-                                        style={[styles.sendButton, (!inputText.trim() || isLoading || !currentChatId) && styles.sendButtonDisabled]}
-                                        onPress={sendMessage}
-                                        disabled={!inputText.trim() || isLoading || !currentChatId}
-                                    >
-                                        <Ionicons 
-                                            name={inputText.trim() ? "send" : "mic"} 
-                                            size={20} 
-                                            color="#fff" 
-                                        />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                            <Text style={styles.disclaimer}>
-                                AI-powered assistance • Always consult healthcare professionals
-                            </Text>
-                        </View>
-                    </KeyboardAvoidingView>
-                </>
-            )}
-        </View>
+            </View>
+        </KeyboardAvoidingView>
     );
 }
 
@@ -953,7 +954,7 @@ const styles = StyleSheet.create({
     },
     inputBar: {
         flexDirection: 'row',
-        alignItems: 'flex-end',
+        alignItems: 'center',
         backgroundColor: '#F8F9FA',
         borderRadius: 25,
         borderWidth: 1,

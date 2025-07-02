@@ -119,6 +119,7 @@ export default function TabLayout() {
         name='search'
         options={{
           title: "Search",
+          headerShown: false,
           href: null,
         }}
       />
