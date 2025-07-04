@@ -95,10 +95,12 @@ export const uploadImageToFirebase = async (
 /**
  * Sends an image to the analysis API
  * @param imageUri The local URI of the image
+ * @param firebaseUrl The Firebase storage URL (optional, will upload if not provided)
  * @returns Promise with the analysis result
  */
 export const analyzeImage = async (
-  imageUri: string
+  imageUri: string,
+  firebaseUrl?: string
 ): Promise<AnalysisResult> => {
   try {
     const token = await getStoredToken();
@@ -119,6 +121,11 @@ export const analyzeImage = async (
       name: fileName || "photo.jpg",
       type: "image/jpeg",
     });
+
+    // Add Firebase URL to payload if provided
+    if (firebaseUrl) {
+      formData.append("firebaseUrl", firebaseUrl);
+    }
 
     // Use a timeout to prevent hanging requests
     const response = await axios.post<ServerResponse>(

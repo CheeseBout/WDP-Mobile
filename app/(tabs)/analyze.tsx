@@ -151,7 +151,8 @@ export default function AnalyzeScreen() {
     setLoading(true);
 
     try {
-      const result = await analyzeImage(image);
+      // Pass the Firebase URL to the analyze function
+      const result = await analyzeImage(image, firebaseUrl || undefined);
       setPrediction(result);
 
       if (result.analysis && result.analysis.recommendedProducts.length > 0) {
