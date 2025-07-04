@@ -148,17 +148,24 @@ export default function AnalyzeScreen() {
       return;
     }
 
+    // Check if Firebase URL is available before proceeding
+    if (!firebaseUrl) {
+      Alert.alert("Please wait", "Image is still uploading. Please try again in a moment.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       // Pass the Firebase URL to the analyze function
-      const result = await analyzeImage(image, firebaseUrl || undefined);
+      const result = await analyzeImage(image, firebaseUrl);
       setPrediction(result);
 
       if (result.analysis && result.analysis.recommendedProducts.length > 0) {
         await fetchProductDetails(result.analysis.recommendedProducts);
       }
     } catch (error) {
+      console.error("Analysis error:", error);
       Alert.alert("Error", "Skin analysis failed. Please try again.");
       setPrediction({ error: "Analysis failed. Please try again." });
     } finally {
