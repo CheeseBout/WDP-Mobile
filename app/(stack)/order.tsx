@@ -4,14 +4,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 export default function OrderScreen() {
@@ -27,7 +27,8 @@ export default function OrderScreen() {
         Alert.alert('Error', result.error);
         setOrders([]);
       } else {
-        setOrders(result.data);
+        const sortedOrders = result.data.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        setOrders(sortedOrders);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to load orders');
@@ -73,12 +74,16 @@ export default function OrderScreen() {
         return '#FF9800';
       case 'processing':
         return '#2196F3';
+      case 'in transit':
+        return '#673AB7';
       case 'shipped':
         return '#9C27B0';
       case 'delivered':
         return '#4CAF50';
       case 'cancelled':
         return '#F44336';
+      case 'returned':
+        return '#FF5722';
       default:
         return '#757575';
     }
@@ -90,12 +95,16 @@ export default function OrderScreen() {
         return 'time-outline';
       case 'processing':
         return 'refresh-outline';
+      case 'in transit':
+        return 'airplane-outline';
       case 'shipped':
         return 'car-outline';
       case 'delivered':
         return 'checkmark-circle-outline';
       case 'cancelled':
         return 'close-circle-outline';
+      case 'returned':
+        return 'return-up-back-outline';
       default:
         return 'help-circle-outline';
     }
@@ -129,11 +138,11 @@ export default function OrderScreen() {
           <Text style={styles.orderDate}>{formatDate(item.createdAt)}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Ionicons 
-            name={getStatusIcon(item.status) as any} 
-            size={14} 
-            color="white" 
-            style={styles.statusIcon} 
+          <Ionicons
+            name={getStatusIcon(item.status) as any}
+            size={14}
+            color="white"
+            style={styles.statusIcon}
           />
           <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
         </View>
@@ -176,7 +185,7 @@ export default function OrderScreen() {
       <View style={styles.container}>
         <View style={styles.titleContainer}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1565C0" />
+            <Ionicons name="caret-back" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.title}>My Orders</Text>
           <View style={styles.placeholder} />
@@ -194,7 +203,7 @@ export default function OrderScreen() {
       <View style={styles.content}>
         <View style={styles.titleContainer}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#1565C0" />
+            <Ionicons name="caret-back" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.title}>My Orders</Text>
           <View style={styles.placeholder} />
@@ -205,7 +214,7 @@ export default function OrderScreen() {
             <Ionicons name="receipt-outline" size={60} color="#1565C0" />
             <Text style={styles.emptyTitle}>No orders found</Text>
             <Text style={styles.emptyText}>You haven't placed any orders yet</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.shopButton}
               onPress={() => router.push('/(tabs)/home')}
             >
@@ -248,8 +257,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingTop: 50, // Add top padding to account for status bar
-    backgroundColor: '#1565C0', // Match header color
+    backgroundColor: '#1565C0',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
@@ -261,7 +269,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#FFFFFF', // White text for better contrast
+    color: '#FFFFFF', 
     flex: 1,
     textAlign: 'center',
   },

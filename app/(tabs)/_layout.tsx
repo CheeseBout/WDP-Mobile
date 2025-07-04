@@ -19,8 +19,7 @@ export default function TabLayout() {
       if ('error' in result) {
         setCartCount(0);
       } else {
-        const totalItems = result.data.items.length;
-        setCartCount(totalItems);
+        setCartCount(result.data.items.length);
       }
     } catch (error) {
       console.error('Error loading cart count:', error);

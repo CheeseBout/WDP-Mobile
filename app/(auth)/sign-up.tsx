@@ -1,56 +1,38 @@
-import { useOAuth, useSignUp } from '@clerk/clerk-expo'
+import { registerUser } from '@/services/auth.service'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { Link, Stack, useRouter } from 'expo-router'
-import * as WebBrowser from 'expo-web-browser'
-import * as React from 'react'
+import { useState } from 'react'
+
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native'
 
-WebBrowser.maybeCompleteAuthSession()
-
 export default function SignUpScreen() {
-  const { isLoaded, signUp, setActive } = useSignUp()
-  const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' })
   const router = useRouter()
 
-  const [emailAddress, setEmailAddress] = React.useState('')
-  const [password, setPassword] = React.useState('')
-  const [fullName, setFullName] = React.useState('')
-  const [pendingVerification, setPendingVerification] = React.useState(false)
-  const [code, setCode] = React.useState('')
-  const [loading, setLoading] = React.useState(false)
-  const [googleLoading, setGoogleLoading] = React.useState(false)
-
-  const onGoogleSignUp = async () => {
-    setGoogleLoading(true)
-    try {
-      const { createdSessionId, setActive } = await startOAuthFlow()
-
-      if (createdSessionId) {
-        setActive({ session: createdSessionId })
-        router.replace('/')
-      }
-    } catch (err) {
-      console.error('OAuth error', err)
-      Alert.alert('Error', 'Google sign up failed')
-    } finally {
-      setGoogleLoading(false)
-    }
-  }
+  const [emailAddress, setEmailAddress] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
+  const [dob, setDob] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   // Handle submission of sign-up form
   const onSignUpPress = async () => {
-    if (!isLoaded) return
-
-    if (!emailAddress || !password || !fullName) {
+    if (!emailAddress || !password || !confirmPassword || !fullName) {
       Alert.alert('Error', 'Please fill in all required fields')
       return
     }
@@ -60,189 +42,235 @@ export default function SignUpScreen() {
       return
     }
 
-    setLoading(true)
-    try {
-      await signUp.create({
-        emailAddress,
-        password,
-      })
-
-      // Send user an email with verification code
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
-
-      // Set 'pendingVerification' to true to display second form
-      // and capture OTP code
-      setPendingVerification(true)
-    } catch (err) {
-      console.error(JSON.stringify(err, null, 2))
-      Alert.alert('Error', 'Sign up failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Handle submission of verification form
-  const onVerifyPress = async () => {
-    if (!isLoaded) return
-
-    if (!code) {
-      Alert.alert('Error', 'Please enter the verification code')
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match')
       return
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(emailAddress)) {
+      Alert.alert('Error', 'Please enter a valid email address')
+      return
+    }
+
+    // Validate date format if DOB is provided
+    if (dob && dob.trim() !== '') {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+      if (!dateRegex.test(dob)) {
+        Alert.alert('Error', 'Please enter date of birth in YYYY-MM-DD format')
+        return
+      }
+      
+      const dateObj = new Date(dob)
+      if (dateObj.toString() === 'Invalid Date') {
+        Alert.alert('Error', 'Please enter a valid date of birth')
+        return
+      }
+    }
+
     setLoading(true)
     try {
-      // Use the code the user provided to attempt verification
-      const signUpAttempt = await signUp.attemptEmailAddressVerification({
-        code,
+      const result = await registerUser({
+        email: emailAddress,
+        password,
+        fullName,
+        phone: phone || null,
+        address: address || null,
+        dob: dob || null,
+        role: 'customer'
       })
 
-      // If verification was completed, set the session to active
-      // and redirect the user
-      if (signUpAttempt.status === 'complete') {
-        await setActive({ session: signUpAttempt.createdSessionId })
-        router.replace('/')
+      if ('error' in result) {
+        Alert.alert('Registration Failed', result.error)
       } else {
-        console.error(JSON.stringify(signUpAttempt, null, 2))
-        Alert.alert('Error', 'Verification failed')
+        Alert.alert(
+          'Success', 
+          'Account created successfully! Please sign in.',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.replace('/sign-in')
+            }
+          ]
+        )
       }
     } catch (err) {
-      console.error(JSON.stringify(err, null, 2))
-      Alert.alert('Error', 'Verification failed')
+      console.error('Registration error:', err)
+      Alert.alert('Error', 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  if (pendingVerification) {
-    return (
-      <View style={styles.container}>
-        <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          <View style={styles.formContainer}>
-            <Text style={styles.welcomeText}>Verify Your Email</Text>
-            <Text style={styles.verificationSubtext}>
-              We've sent a verification code to {emailAddress}
-            </Text>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Verification Code</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter verification code"
-                placeholderTextColor="#8B9DC3"
-                value={code}
-                onChangeText={setCode}
-                keyboardType="number-pad"
-                textAlign="center"
-              />
-            </View>
-            
-            <TouchableOpacity
-              style={[styles.loginButton, loading && styles.buttonDisabled]}
-              onPress={onVerifyPress}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="white" size="small" />
-              ) : (
-                <Text style={styles.loginButtonText}>Verify Email</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
-    )
-  }
-
   return (
-    <><Stack.Screen
-      options={{
-        title: 'Sign Up',
-      }} />
-      <View style={styles.container}>
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.formContainer}>
-          <Text style={styles.welcomeText}>Create Account</Text>
+    <>
+      <Stack.Screen
+        options={{
+          title: 'Sign Up',
+        }} 
+      />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <View style={styles.container}>
+          <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+            <View style={styles.formContainer}>
+              <Text style={styles.welcomeText}>Create Account</Text>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your full name"
-              placeholderTextColor="#8B9DC3"
-              value={fullName}
-              onChangeText={setFullName}
-            />
-          </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Full Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#8B9DC3"
+                  value={fullName}
+                  onChangeText={setFullName}
+                />
+              </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              placeholderTextColor="#8B9DC3"
-              value={emailAddress}
-              onChangeText={setEmailAddress}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Email Address *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#8B9DC3"
+                  value={emailAddress}
+                  onChangeText={setEmailAddress}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Create a password (min 6 characters)"
-              placeholderTextColor="#8B9DC3"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your phone number (optional)"
+                  placeholderTextColor="#8B9DC3"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                />
+              </View>
 
-          <TouchableOpacity
-            style={[styles.loginButton, loading && styles.buttonDisabled]}
-            onPress={onSignUpPress}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="white" size="small" />
-            ) : (
-              <Text style={styles.loginButtonText}>Create Account</Text>
-            )}
-          </TouchableOpacity>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Date of Birth</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="YYYY-MM-DD (optional)"
+                  placeholderTextColor="#8B9DC3"
+                  value={dob}
+                  onChangeText={setDob}
+                  maxLength={10}
+                />
+              </View>
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.dividerLine} />
-          </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Address</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your address (optional)"
+                  placeholderTextColor="#8B9DC3"
+                  value={address}
+                  onChangeText={setAddress}
+                  multiline
+                  numberOfLines={2}
+                />
+              </View>
 
-          <TouchableOpacity
-            style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
-            onPress={onGoogleSignUp}
-            disabled={googleLoading}
-          >
-            {googleLoading ? (
-              <ActivityIndicator color="#1565C0" size="small" />
-            ) : (
-              <>
-                <Ionicons name="logo-google" size={24} color="black" />
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
-              </>
-            )}
-          </TouchableOpacity>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Password *</Text>
+                <View style={{ position: 'relative' }}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Create a password (min 6 characters)"
+                    placeholderTextColor="#8B9DC3"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                  />
+                  <TouchableOpacity
+                    style={{
+                      position: 'absolute',
+                      right: 16,
+                      top: 0,
+                      bottom: 0,
+                      justifyContent: 'center',
+                      height: '100%',
+                    }}
+                    onPress={() => setShowPassword((prev) => !prev)}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off' : 'eye'}
+                      size={22}
+                      color="#8B9DC3"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-          <TouchableOpacity style={styles.registerLink}>
-            <Link href={"/sign-in" as any}>
-              <Text style={styles.registerLinkText}>
-                Already have an account? <Text style={styles.registerLinkBold}>Sign in</Text>
-              </Text>
-            </Link>
-          </TouchableOpacity>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Confirm Password *</Text>
+                <View style={{ position: 'relative' }}>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      confirmPassword.length > 0 && password !== confirmPassword && styles.inputError
+                    ]}
+                    placeholder="Confirm your password"
+                    placeholderTextColor="#8B9DC3"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirmPassword}
+                  />
+                  <TouchableOpacity
+                    style={{
+                      position: 'absolute',
+                      right: 16,
+                      top: 0,
+                      bottom: 0,
+                      justifyContent: 'center',
+                      height: '100%',
+                    }}
+                    onPress={() => setShowConfirmPassword((prev) => !prev)}
+                  >
+                    <Ionicons
+                      name={showConfirmPassword ? 'eye-off' : 'eye'}
+                      size={22}
+                      color="#8B9DC3"
+                    />
+                  </TouchableOpacity>
+                </View>
+                {confirmPassword.length > 0 && password !== confirmPassword && (
+                  <Text style={styles.errorText}>Passwords do not match</Text>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.loginButton, loading && styles.buttonDisabled]}
+                onPress={onSignUpPress}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text style={styles.loginButtonText}>Create Account</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.registerLink}>
+                <Link href={"/sign-in" as any}>
+                  <Text style={styles.registerLinkText}>
+                    Already have an account? <Text style={styles.registerLinkBold}>Sign in</Text>
+                  </Text>
+                </Link>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
-      </ScrollView>
-    </View>
+      </KeyboardAvoidingView>
     </>
   )
 }
@@ -279,12 +307,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E3F2FD',
   },
-  verificationSubtext: {
-    fontSize: 14,
-    color: '#90CAF9',
-    textAlign: 'center',
-    marginBottom: 25,
-  },
   inputContainer: {
     marginBottom: 18,
   },
@@ -302,6 +324,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#E3F2FD',
     color: '#1565C0',
+  },
+  inputError: {
+    borderColor: '#F44336',
+    backgroundColor: '#FFEBEE',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#F44336',
+    marginTop: 4,
+    marginLeft: 4,
   },
   loginButton: {
     backgroundColor: '#1565C0',
@@ -322,39 +354,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E3F2FD',
-  },
-  dividerText: {
-    marginHorizontal: 15,
-    color: '#90CAF9',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  googleButton: {
-    backgroundColor: '#F8FBFF',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#E3F2FD',
-    marginBottom: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  googleButtonText: {
-    color: '#1565C0',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
   },
   registerLink: {
     alignItems: 'center',

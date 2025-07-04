@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        height: 36,
+        height: 38,
         fontSize: 14,
         color: 'white',
     },

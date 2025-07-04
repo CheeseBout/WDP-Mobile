@@ -454,7 +454,7 @@ export default function ProductDetailScreen() {
                 {submittingReview ? (
                   <ActivityIndicator size="small" color="white" />
                 ) : (
-                  <Text style={styles.submitButtonText}>Submit Review</Text>
+                  <Text style={styles.submitButtonText}>Submit</Text>
                 )}
               </TouchableOpacity>
             </View>
