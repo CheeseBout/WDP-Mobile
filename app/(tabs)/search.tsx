@@ -20,42 +20,68 @@ export default function SearchScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [searchTerm, setSearchTerm] = useState(q || '')
   const [appliedSearchTerm, setAppliedSearchTerm] = useState(q || '')
+  const [sortOption, setSortOption] = useState<'relevance' | 'priceLow' | 'priceHigh' | 'nameAZ' | 'nameZA'>('relevance')
   const router = useRouter()
 
   // Fetch all products and filter by search term
-  const loadProducts = useCallback(async (search: string) => {
+  const loadProducts = useCallback(async (search: string, sort: typeof sortOption = sortOption) => {
     setLoading(true)
     const res = await fetchAllProductsForAI()
+    let filtered: Product[] = []
     if (Array.isArray(res)) {
-      setProducts(search ? searchProductsForAI(res, search) : res)
+      filtered = search ? searchProductsForAI(res, search) : res
+      // Sorting logic
+      switch (sort) {
+        case 'priceLow':
+          filtered = [...filtered].sort((a, b) => a.price - b.price)
+          break
+        case 'priceHigh':
+          filtered = [...filtered].sort((a, b) => b.price - a.price)
+          break
+        case 'nameAZ':
+          filtered = [...filtered].sort((a, b) => a.productName.localeCompare(b.productName))
+          break
+        case 'nameZA':
+          filtered = [...filtered].sort((a, b) => b.productName.localeCompare(a.productName))
+          break
+        default:
+          // relevance: do nothing, keep original order
+          break
+      }
+      setProducts(filtered)
     } else {
       setProducts([])
     }
     setLoading(false)
-  }, [])
+  }, [sortOption])
 
   useEffect(() => {
     setSearchTerm(q || '')
     setAppliedSearchTerm(q || '')
-    loadProducts(q || '')
-  }, [q, loadProducts])
+    loadProducts(q || '', sortOption)
+  }, [q, loadProducts, sortOption])
 
   const handleSearchChange = (text: string) => {
     setSearchTerm(text)
     if (text === '') {
       setAppliedSearchTerm('')
-      loadProducts('')
+      loadProducts('', sortOption)
     }
   }
 
   const handleSearchSubmit = () => {
     setAppliedSearchTerm(searchTerm)
-    loadProducts(searchTerm)
+    loadProducts(searchTerm, sortOption)
+  }
+
+  const handleSortChange = (option: typeof sortOption) => {
+    setSortOption(option)
+    loadProducts(appliedSearchTerm, option)
   }
 
   const onRefresh = () => {
     setRefreshing(true)
-    loadProducts(appliedSearchTerm).then(() => setRefreshing(false))
+    loadProducts(appliedSearchTerm, sortOption).then(() => setRefreshing(false))
   }
 
   const formatPrice = (price: number) => {
@@ -151,6 +177,40 @@ export default function SearchScreen() {
         <Text style={styles.headerTitle}>
           {appliedSearchTerm ? `Results for "${appliedSearchTerm}"` : 'All Products'}
         </Text>
+        {/* Sort Filters */}
+        <View style={styles.sortFilterRow}>
+          <Text style={styles.sortLabel}>Sort by:</Text>
+          <TouchableOpacity
+            style={[styles.sortButton, sortOption === 'relevance' && styles.sortButtonActive]}
+            onPress={() => handleSortChange('relevance')}
+          >
+            <Text style={styles.sortButtonText}>Relevance</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.sortButton, sortOption === 'priceLow' && styles.sortButtonActive]}
+            onPress={() => handleSortChange('priceLow')}
+          >
+            <Text style={styles.sortButtonText}>Price ↑</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.sortButton, sortOption === 'priceHigh' && styles.sortButtonActive]}
+            onPress={() => handleSortChange('priceHigh')}
+          >
+            <Text style={styles.sortButtonText}>Price ↓</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.sortButton, sortOption === 'nameAZ' && styles.sortButtonActive]}
+            onPress={() => handleSortChange('nameAZ')}
+          >
+            <Text style={styles.sortButtonText}>A-Z</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.sortButton, sortOption === 'nameZA' && styles.sortButtonActive]}
+            onPress={() => handleSortChange('nameZA')}
+          >
+            <Text style={styles.sortButtonText}>Z-A</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <View style={styles.productsSection}>
         <FlatList
@@ -347,5 +407,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
     lineHeight: 20,
+  },
+  sortFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  sortLabel: {
+    fontSize: 13,
+    color: '#1565C0',
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  sortButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#93d2ffff',
+    marginRight: 6,
+    marginBottom: 4,
+  },
+  sortButtonActive: {
+    backgroundColor: '#1565C0',
+  },
+  sortButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
   },
 });
