@@ -1,37 +1,17 @@
-import { Tabs, useFocusEffect } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import { Tabs } from 'expo-router';
+import React from 'react';
 import { Platform } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { getMyCart } from '@/services/cart.service';
+import { useCart } from '../context/CartContext';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
 
-  const [cartCount, setCartCount] = useState(0);
-
-  const loadCartCount = useCallback(async () => {
-    try {
-      const result = await getMyCart();
-      if ('error' in result) {
-        setCartCount(0);
-      } else {
-        setCartCount(result.data.items.length);
-      }
-    } catch (error) {
-      console.error('Error loading cart count:', error);
-      setCartCount(0);
-    }
-  }, [])
-
-  useFocusEffect(
-    useCallback(() => {
-      loadCartCount();
-    }, [loadCartCount])
-  );
+  const {cartCount} = useCart();
 
   return (
     <Tabs

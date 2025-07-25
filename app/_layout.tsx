@@ -3,13 +3,16 @@ import { tokenCache } from '@clerk/clerk-expo/token-cache'
 import { Slot } from 'expo-router'
 import { StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { CartProvider } from './context/CartContext'
 
 export default function RootLayout() {
   return (
     <SafeAreaView style={styles.container}>
-      <ClerkProvider tokenCache={tokenCache} >
-        <Slot />
-      </ClerkProvider>
+      <CartProvider>
+        <ClerkProvider tokenCache={tokenCache} >
+          <Slot />
+        </ClerkProvider>
+      </CartProvider>
     </SafeAreaView>
   )
 }

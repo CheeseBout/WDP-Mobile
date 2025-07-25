@@ -1,11 +1,30 @@
 import { Header } from '@/components/Header'
 import { getStoredToken } from '@/services/auth.service'
-import { addToCart, CartItemWithProduct, checkout, getMyCart, removeFromCart, storeSelectedItems, UserCart } from '@/services/cart.service'
+import {
+  addToCart,
+  CartItemWithProduct,
+  checkout,
+  getMyCart,
+  removeFromCart,
+  storeSelectedItems,
+  UserCart,
+} from '@/services/cart.service'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from '@react-navigation/native'
 import { router } from 'expo-router'
 import React, { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, FlatList, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native'
+import { useCart } from '../context/CartContext'
 
 export default function CartScreen() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -16,6 +35,9 @@ export default function CartScreen() {
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [quantityLoading, setQuantityLoading] = useState<string | null>(null) // productId for which quantity is updating
+
+  // Integrate CartContext for badge update
+  const { refreshCart, setCartCount } = useCart()
 
   useEffect(() => {
     loadCart()
@@ -35,6 +57,7 @@ export default function CartScreen() {
       if (!token) {
         console.log('No token found for cart request')
         setLoading(false)
+        setCartCount(0)
         return
       }
 
@@ -47,13 +70,14 @@ export default function CartScreen() {
         setCartData(null)
         setTotalAmount(0)
         setSelectedProductIds([])
+        setCartCount(0)
       } else {
         console.log('Cart loaded successfully:', result.data.items.length, 'items')
         setCartItems(result.data.items)
         setCartData(result.data)
         setTotalAmount(result.data.totalAmount)
-        // Automatically select all items
         setSelectedProductIds(result.data.items.map(item => item.productId._id))
+        setCartCount(result.data.items.length)
       }
     } catch (error) {
       console.error('Error loading cart:', error)
@@ -62,6 +86,7 @@ export default function CartScreen() {
       setCartData(null)
       setTotalAmount(0)
       setSelectedProductIds([])
+      setCartCount(0)
     } finally {
       setLoading(false)
     }
@@ -80,9 +105,9 @@ export default function CartScreen() {
       const result = await removeFromCart(productId)
       if (result.success) {
         Alert.alert('Success', 'Item removed from cart')
-        // Remove from selected items if it was selected
         setSelectedProductIds(prev => prev.filter(id => id !== productId))
-        loadCart() // Reload cart
+        await loadCart()
+        refreshCart()
       } else {
         Alert.alert('Error', result.message)
       }
@@ -94,10 +119,8 @@ export default function CartScreen() {
   const handleItemSelection = (productId: string) => {
     setSelectedProductIds(prev => {
       if (prev.includes(productId)) {
-        // Remove from selection
         return prev.filter(id => id !== productId)
       } else {
-        // Add to selection
         return [...prev, productId]
       }
     })
@@ -106,20 +129,19 @@ export default function CartScreen() {
   const calculateSelectedTotal = () => {
     return cartItems
       .filter(item => selectedProductIds.includes(item.productId._id))
-      .reduce((total, item) => total + (item.price * item.quantity), 0)
+      .reduce((total, item) => total + item.price * item.quantity, 0)
   }
 
-  // Add/Remove quantity logic using addToCart and removeFromCart
   const handleIncreaseQuantity = async (item: CartItemWithProduct) => {
     setQuantityLoading(item.productId._id)
     try {
-      // Call addToCart with quantity 1 to increase
       const result = await addToCart({
         productId: item.productId._id,
         quantity: 1,
       })
       if (result.success) {
-        loadCart()
+        await loadCart()
+        refreshCart()
       } else {
         Alert.alert('Error', result.message || 'Failed to increase quantity')
       }
@@ -132,21 +154,19 @@ export default function CartScreen() {
 
   const handleDecreaseQuantity = async (item: CartItemWithProduct) => {
     if (item.quantity <= 1) {
-      // Remove item from cart if quantity is 1
-      handleRemoveItem(item.productId._id)
+      await handleRemoveItem(item.productId._id)
       return
     }
     setQuantityLoading(item.productId._id)
     try {
-      // Remove one unit by calling removeFromCart and then add back (n-1) units
-      // But since removeFromCart removes all, we need to re-add (quantity-1)
       await removeFromCart(item.productId._id)
       const result = await addToCart({
         productId: item.productId._id,
         quantity: item.quantity - 1,
       })
       if (result.success) {
-        loadCart()
+        await loadCart()
+        refreshCart()
       } else {
         Alert.alert('Error', result.message || 'Failed to decrease quantity')
       }
@@ -170,20 +190,17 @@ export default function CartScreen() {
 
     setCheckoutLoading(true)
     try {
-      // Store selected product IDs in AsyncStorage
-      await storeSelectedItems(selectedProductIds);
+      await storeSelectedItems(selectedProductIds)
 
-      // Filter selected items from cart
-      const selectedItems = cartItems.filter(item => 
+      const selectedItems = cartItems.filter(item =>
         selectedProductIds.includes(item.productId._id)
-      );
+      )
 
-      // Calculate total for selected items
-      const selectedTotal = selectedItems.reduce((total, item) => 
-        total + (item.price * item.quantity), 0
-      );
+      const selectedTotal = selectedItems.reduce(
+        (total, item) => total + item.price * item.quantity,
+        0
+      )
 
-      // Build cart object for checkout - use the actual cart ID and user ID from cart data
       const checkoutPayload = {
         cart: {
           _id: cartData._id,
@@ -191,34 +208,32 @@ export default function CartScreen() {
           items: selectedItems.map(item => ({
             productId: item.productId._id,
             price: item.price,
-            quantity: item.quantity
+            quantity: item.quantity,
           })),
-          totalPrice: selectedTotal
+          totalPrice: selectedTotal,
         },
-        bankCode: "NCB",
-        language: "vn"
-      };
+        bankCode: 'NCB',
+        language: 'vn',
+      }
 
-      console.log('Sending checkout payload:', checkoutPayload);
+      console.log('Sending checkout payload:', checkoutPayload)
 
-      const result = await checkout(checkoutPayload);
+      const result = await checkout(checkoutPayload)
       if (result.success && result.paymentUrl) {
-        console.log('Payment URL received:', result.paymentUrl);
-        
-        // Navigate to payment screen with payment data
+        console.log('Payment URL received:', result.paymentUrl)
         router.push({
           pathname: '/(stack)/payment',
           params: {
             paymentUrl: result.paymentUrl,
             orderReference: result.orderReference || '',
-            totalAmount: (result.totalAmount || selectedTotal).toString()
-          }
-        });
+            totalAmount: (result.totalAmount || selectedTotal).toString(),
+          },
+        })
       } else {
         Alert.alert('Error', result.message || 'Failed to create payment session')
       }
     } catch (error) {
-      console.error('Checkout error:', error);
+      console.error('Checkout error:', error)
       Alert.alert('Error', 'Failed to proceed to checkout')
     } finally {
       setCheckoutLoading(false)
@@ -230,7 +245,7 @@ export default function CartScreen() {
     const isQtyLoading = quantityLoading === item.productId._id
 
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.cartItem, isSelected && styles.cartItemSelected]}
         onPress={() => handleItemSelection(item.productId._id)}
         activeOpacity={0.7}
@@ -240,27 +255,29 @@ export default function CartScreen() {
             {isSelected && <Ionicons name="checkmark" size={16} color="#fff" />}
           </View>
         </View>
-        
+
         <View style={styles.productImagePlaceholder}>
-          <Image 
+          <Image
             source={{ uri: item.productId.productImages[0] }}
             style={styles.cartImage}
-            resizeMode="cover"/>
+            resizeMode="cover"
+          />
         </View>
-        
+
         <View style={styles.itemDetails}>
           <Text style={styles.itemBrand}>{item.productId.brand}</Text>
-          <Text style={styles.itemName} numberOfLines={2}>{item.productId.productName}</Text>
+          <Text style={styles.itemName} numberOfLines={2}>
+            {item.productId.productName}
+          </Text>
           <View style={styles.priceRow}>
             <Text style={styles.itemPrice}>{formatPrice(item.price)}</Text>
-            {/* Quantity controls */}
             <View style={styles.quantityControls}>
               <TouchableOpacity
                 style={[styles.qtyButton, item.quantity <= 1 && styles.qtyButtonDisabled]}
                 onPress={() => handleDecreaseQuantity(item)}
                 disabled={isQtyLoading}
               >
-                <Ionicons name="remove" size={16} color={item.quantity <= 1 ? "#ccc" : "#1565C0"} />
+                <Ionicons name="remove" size={16} color={item.quantity <= 1 ? '#ccc' : '#1565C0'} />
               </TouchableOpacity>
               <View style={styles.qtyValueBox}>
                 {isQtyLoading ? (
@@ -279,8 +296,8 @@ export default function CartScreen() {
             </View>
           </View>
         </View>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.removeButton}
           onPress={() => handleRemoveItem(item.productId._id)}
         >
@@ -293,11 +310,7 @@ export default function CartScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Header
-          showSearch={true}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-        />
+        <Header showSearch={true} searchTerm={searchTerm} onSearchChange={setSearchTerm} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#1565C0" />
           <Text style={styles.loadingText}>Loading cart...</Text>
@@ -308,12 +321,8 @@ export default function CartScreen() {
 
   return (
     <View style={styles.container}>
-      <Header
-        showSearch={true}
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-      />
-      
+      <Header showSearch={true} searchTerm={searchTerm} onSearchChange={setSearchTerm} />
+
       {cartItems.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="cart-outline" size={60} color="#1565C0" />
@@ -323,20 +332,25 @@ export default function CartScreen() {
       ) : (
         <View style={styles.contentWrapper}>
           <View style={styles.selectionHeader}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.selectAllButton}
               onPress={() => {
                 if (selectedProductIds.length === cartItems.length) {
-                  // Deselect all
                   setSelectedProductIds([])
                 } else {
-                  // Select all
                   setSelectedProductIds(cartItems.map(item => item.productId._id))
                 }
               }}
             >
-              <View style={[styles.checkbox, selectedProductIds.length === cartItems.length && styles.checkboxSelected]}>
-                {selectedProductIds.length === cartItems.length && <Ionicons name="checkmark" size={16} color="#fff" />}
+              <View
+                style={[
+                  styles.checkbox,
+                  selectedProductIds.length === cartItems.length && styles.checkboxSelected,
+                ]}
+              >
+                {selectedProductIds.length === cartItems.length && (
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                )}
               </View>
               <Text style={styles.selectAllText}>
                 {selectedProductIds.length === cartItems.length ? 'Deselect All' : 'Select All'}
@@ -350,19 +364,24 @@ export default function CartScreen() {
           <FlatList
             data={cartItems}
             renderItem={renderCartItem}
-            keyExtractor={(item) => item._id}
+            keyExtractor={item => item._id}
             style={styles.cartList}
             contentContainerStyle={styles.cartListContent}
             showsVerticalScrollIndicator={false}
           />
-          
+
           <View style={styles.totalSection}>
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total ({selectedProductIds.length} items)</Text>
+              <Text style={styles.totalLabel}>
+                Total ({selectedProductIds.length} items)
+              </Text>
               <Text style={styles.totalAmount}>{formatPrice(calculateSelectedTotal())}</Text>
             </View>
-            <TouchableOpacity 
-              style={[styles.checkoutButton, (selectedProductIds.length === 0 || checkoutLoading) && styles.checkoutButtonDisabled]}
+            <TouchableOpacity
+              style={[
+                styles.checkoutButton,
+                (selectedProductIds.length === 0 || checkoutLoading) && styles.checkoutButtonDisabled,
+              ]}
               onPress={handleCheckout}
               disabled={selectedProductIds.length === 0 || checkoutLoading}
             >
@@ -484,7 +503,6 @@ const styles = StyleSheet.create({
     color: '#FF4444',
     fontWeight: '600',
   },
-  // Quantity controls styles
   quantityControls: {
     flexDirection: 'row',
     alignItems: 'center',

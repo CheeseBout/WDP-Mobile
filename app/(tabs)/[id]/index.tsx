@@ -1,3 +1,4 @@
+import { useCart } from '@/app/context/CartContext'
 import { getStoredToken } from '@/services/auth.service'
 import { addToCart } from '@/services/cart.service'
 import { createProductReview, fetchProductById, fetchProductReviews, Product, Review } from '@/services/product.service'
@@ -22,6 +23,7 @@ export default function ProductDetailScreen() {
   const [reviewContent, setReviewContent] = useState('')
   const [submittingReview, setSubmittingReview] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const {refreshCart} = useCart();
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -163,6 +165,7 @@ export default function ProductDetailScreen() {
 
       if (result.success) {
         Alert.alert('Success', 'Product added to cart successfully!');
+        await refreshCart();
       } else {
         Alert.alert('Error', result.message);
       }
